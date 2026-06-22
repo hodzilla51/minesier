@@ -39,5 +39,9 @@ replay_*.log
 *.hprof
 *.jfr
 
-# claude local settings
-.claude/settings.local.json
+# ai assistants (local AI config / memory — not shared)
+.claude/
+CLAUDE.md
+.cursor/
+.aider*
+.continue/
