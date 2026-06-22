@@ -25,9 +25,14 @@ import org.lwjgl.glfw.GLFW;
 public class ComputerScreen extends Screen {
 	private static final int MARGIN = 12;
 	private static final int EDITOR_HEIGHT = 72;
-	private static final int BUTTON_W = 50;
 	private static final int BUTTON_H = 20;
-	private static final int TEXT_COLOR = 0xFFE0E0E0;
+
+	// Terminal "CRT" skin colors (ARGB).
+	private static final int PANEL_COLOR = 0xFF0C120C;
+	private static final int BORDER_COLOR = 0xFF3A6B3A;
+	private static final int TITLEBAR_COLOR = 0xFF18301A;
+	private static final int TITLE_COLOR = 0xFF7CFC7C;
+	private static final int TEXT_COLOR = 0xFFD0E8D0;
 
 	/**
 	 * The currently open terminal, if any. {@link Minecraft} no longer exposes the
@@ -152,15 +157,28 @@ public class ComputerScreen extends Screen {
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 		Font font = Minecraft.getInstance().font;
-		int lineHeight = font.lineHeight + 1;
-		int areaBottom = (this.editor != null ? this.editor.getY() : this.height) - 4;
 
+		int left = MARGIN;
+		int right = this.width - MARGIN;
+		int top = MARGIN;
+		int bottom = (this.editor != null ? this.editor.getY() : this.height) - 6;
+		int titleHeight = font.lineHeight + 6;
+
+		// Framed terminal panel: border, body, then a title bar.
+		graphics.fill(left - 1, top - 1, right + 1, bottom + 1, BORDER_COLOR);
+		graphics.fill(left, top, right, bottom, PANEL_COLOR);
+		graphics.fill(left, top, right, top + titleHeight, TITLEBAR_COLOR);
+		graphics.text(font, "MineSIer terminal", left + 6, top + 4, TITLE_COLOR);
+
+		// Scrollback: draw the tail that fits inside the panel, below the title bar.
+		int lineHeight = font.lineHeight + 1;
+		int textTop = top + titleHeight + 3;
 		String[] lines = this.transcript.split("\n", -1);
-		int maxLines = Math.max(1, (areaBottom - MARGIN) / lineHeight);
-		int start = Math.max(0, lines.length - maxLines); // show the tail (auto-scroll to bottom)
-		int y = MARGIN;
+		int maxLines = Math.max(1, (bottom - 4 - textTop) / lineHeight);
+		int start = Math.max(0, lines.length - maxLines);
+		int y = textTop;
 		for (int i = start; i < lines.length; i++) {
-			graphics.text(font, lines[i], MARGIN, y, TEXT_COLOR);
+			graphics.text(font, lines[i], left + 6, y, TEXT_COLOR);
 			y += lineHeight;
 		}
 	}

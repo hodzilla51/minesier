@@ -5,6 +5,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.hodzilla51.minesier.block.TurtleAccess;
+import com.hodzilla51.minesier.block.TurtleBlock;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
@@ -57,7 +58,8 @@ public final class TurtleManager {
 		for (int i = 0; i < inventory.size(); i++) {
 			inventory.set(i, be.getInventory().get(i).copy());
 		}
-		TurtleAccess world = new TurtleAccess(level, pos, be.getFacing(), be.getFuel(), inventory, be.getSelectedSlot());
+		Direction facing = level.getBlockState(pos).getValue(TurtleBlock.FACING);
+		TurtleAccess world = new TurtleAccess(level, pos, facing, be.getFuel(), inventory, be.getSelectedSlot());
 		TurtleBrain brain = new TurtleBrain(vm, world, command);
 
 		List<String> base = new ArrayList<>(List.of(be.getTranscript().split("\n", -1)));
@@ -87,7 +89,6 @@ public final class TurtleManager {
 
 	private static void finish(Running r) {
 		BlockPos endPos = r.world.pos();
-		Direction facing = r.world.facing();
 		int fuel = r.world.fuel();
 
 		List<String> lines = new ArrayList<>(r.baseTranscript);
@@ -97,8 +98,9 @@ public final class TurtleManager {
 		}
 		String transcript = String.join("\n", lines);
 
+		// Facing already lives in the block's state (updated as the turtle turned/moved).
 		if (r.level.getBlockEntity(endPos) instanceof TurtleBlockEntity end) {
-			end.applyResult(r.vm, facing, fuel, r.world.inventory(), r.world.selectedSlot(), r.disk, transcript);
+			end.applyResult(r.vm, fuel, r.world.inventory(), r.world.selectedSlot(), r.disk, transcript);
 		}
 		ServerPlayNetworking.send(r.player, new TerminalScreenS2C(endPos, transcript, false));
 	}

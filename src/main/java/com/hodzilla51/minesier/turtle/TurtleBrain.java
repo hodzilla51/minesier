@@ -2,7 +2,7 @@ package com.hodzilla51.minesier.turtle;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.TurtleApi;
@@ -20,9 +20,14 @@ import com.hodzilla51.minesier.js.TurtleApi;
  * The supplied {@link TurtleApi} {@code world} is therefore only ever called from there.
  */
 public final class TurtleBrain {
-	/** Ticks each "physical" action takes (movement, dig, place). Sensing/turning is instant. */
+	/** Ticks a movement/dig/place action takes (also the slide-animation duration). */
 	public static final int PACE_TICKS = 6;
-	private static final Set<String> PACED = Set.of("forward", "back", "dig", "place", "placeSelected");
+	/** Ticks a turn takes — shorter than a move, but visible (not instant). */
+	public static final int TURN_TICKS = 4;
+	private static final Map<String, Integer> PACE = Map.of(
+		"forward", PACE_TICKS, "back", PACE_TICKS, "dig", PACE_TICKS,
+		"place", PACE_TICKS, "placeSelected", PACE_TICKS,
+		"turnLeft", TURN_TICKS, "turnRight", TURN_TICKS);
 
 	private final JsComputer vm;
 	private final TurtleApi world;
@@ -97,7 +102,7 @@ public final class TurtleBrain {
 			}
 			if (!executing) {
 				executing = true;
-				ticksLeft = PACED.contains(op) ? PACE_TICKS : 0;
+				ticksLeft = PACE.getOrDefault(op, 0);
 				// Perform the world effect at the START so the move/animation plays over the pacing.
 				result = perform(op, args);
 			}

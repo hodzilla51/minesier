@@ -4,6 +4,7 @@ import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.LoadProgramS2C;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
+import com.hodzilla51.minesier.net.TurtleTurnS2C;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -29,6 +30,16 @@ public class MineSIerClient implements ClientModInitializer {
 				Direction fromDir = Direction.values()[payload.fromDir()];
 				long tick = context.client().level != null ? context.client().level.getGameTime() : 0L;
 				TurtleAnimations.begin(payload.pos(), fromDir, tick);
+			}));
+
+		// Server signals a turtle turn: ease the model from its previous heading.
+		ClientPlayNetworking.registerGlobalReceiver(TurtleTurnS2C.TYPE, (payload, context) ->
+			context.client().execute(() -> {
+				long tick = context.client().level != null ? context.client().level.getGameTime() : 0L;
+				// The blockstate already holds the NEW facing; start the model rotated back toward
+				// where it came from (a clockwise turn means it was 90° counter-clockwise before).
+				float deltaDeg = payload.clockwise() ? 90f : -90f;
+				TurtleAnimations.beginTurn(payload.pos(), deltaDeg, tick);
 			}));
 
 		// Server sends a saved program's source to drop into the editor.

@@ -1,5 +1,8 @@
 {
   "variants": {
-    "": { "model": "minesier:block/turtle" }
+    "facing=north": { "model": "minesier:block/turtle" },
+    "facing=east":  { "model": "minesier:block/turtle", "y": 90 },
+    "facing=south": { "model": "minesier:block/turtle", "y": 180 },
+    "facing=west":  { "model": "minesier:block/turtle", "y": 270 }
   }
 }

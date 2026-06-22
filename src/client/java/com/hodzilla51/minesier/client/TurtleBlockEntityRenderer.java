@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.client;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.turtle.TurtleBrain;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -54,6 +55,15 @@ public class TurtleBlockEntityRenderer implements BlockEntityRenderer<TurtleBloc
 				state.offsetZ = slide.fromDir().getStepZ() * back;
 			}
 		}
+
+		state.turnDeg = 0f;
+		TurtleAnimations.Turn turn = TurtleAnimations.getTurn(pos);
+		if (turn != null) {
+			float progress = (level.getGameTime() + partialTick - turn.startTick()) / TurtleBrain.TURN_TICKS;
+			if (progress >= 0f && progress < 1f) {
+				state.turnDeg = turn.deltaDeg() * (1f - progress); // eases to 0 = final facing
+			}
+		}
 	}
 
 	@Override
@@ -64,6 +74,10 @@ public class TurtleBlockEntityRenderer implements BlockEntityRenderer<TurtleBloc
 		}
 		poseStack.pushPose();
 		poseStack.translate(state.offsetX, state.offsetY, state.offsetZ);
+		if (state.turnDeg != 0f) {
+			// Rotate around the block's vertical center axis to ease the turn.
+			poseStack.rotateAround(Axis.YP.rotationDegrees(state.turnDeg), 0.5f, 0.5f, 0.5f);
+		}
 		collector.submitMovingBlock(poseStack, state.moving, state.lightCoords);
 		poseStack.popPose();
 	}

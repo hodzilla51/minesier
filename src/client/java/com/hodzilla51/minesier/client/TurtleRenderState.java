@@ -9,4 +9,6 @@ public class TurtleRenderState extends BlockEntityRenderState {
 	public float offsetX;
 	public float offsetY;
 	public float offsetZ;
+	/** Extra yaw (degrees) eased away from the final facing while turning; 0 when settled. */
+	public float turnDeg;
 }

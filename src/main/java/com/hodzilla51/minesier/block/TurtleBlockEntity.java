@@ -7,7 +7,6 @@ import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.item.ItemStack;
@@ -18,14 +17,14 @@ import net.minecraft.world.level.storage.ValueOutput;
 
 /**
  * Persistent shell + state for a placed turtle: its VM (so variables survive),
- * scrollback transcript, facing, and fuel. While a program runs, the authoritative
+ * scrollback transcript, fuel, inventory, and inserted disk. Facing lives in the
+ * block's state (auto-synced to clients). While a program runs, the authoritative
  * live state lives in the {@code turtle.TurtleManager}'s brain (the block hops and
  * its block entity is recreated); the brain writes final state back here via
  * {@link #applyResult}.
  */
 public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 	private static final String KEY_TRANSCRIPT = "Transcript";
-	private static final String KEY_FACING = "Facing";
 	private static final String KEY_FUEL = "Fuel";
 	private static final String KEY_SELECTED = "SelectedSlot";
 	private static final String KEY_DISK = "Disk";
@@ -35,7 +34,6 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 
 	private JsComputer vm = new JsComputer();
 	private final List<String> transcript = new ArrayList<>(List.of(WELCOME));
-	private Direction facing = Direction.NORTH;
 	private int fuel = DEFAULT_FUEL;
 	private NonNullList<ItemStack> inventory = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
 	private int selectedSlot = 0;
@@ -43,15 +41,6 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 
 	public TurtleBlockEntity(BlockPos pos, BlockState state) {
 		super(ModContent.TURTLE_BLOCK_ENTITY, pos, state);
-	}
-
-	public Direction getFacing() {
-		return facing;
-	}
-
-	public void setFacing(Direction facing) {
-		this.facing = facing;
-		setChanged();
 	}
 
 	public int getFuel() {
@@ -91,10 +80,9 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 	}
 
 	/** Lands a finished program's state onto this (the turtle's final-position) block entity. */
-	public void applyResult(JsComputer vm, Direction facing, int fuel, NonNullList<ItemStack> inventory,
+	public void applyResult(JsComputer vm, int fuel, NonNullList<ItemStack> inventory,
 			int selectedSlot, ItemStack disk, String transcript) {
 		this.vm = vm;
-		this.facing = facing;
 		this.fuel = fuel;
 		this.inventory = inventory;
 		this.selectedSlot = selectedSlot;
@@ -114,7 +102,6 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 		for (String line : saved.split("\n", -1)) {
 			transcript.add(line);
 		}
-		this.facing = Direction.values()[in.getIntOr(KEY_FACING, Direction.NORTH.ordinal())];
 		this.fuel = in.getIntOr(KEY_FUEL, DEFAULT_FUEL);
 		this.selectedSlot = in.getIntOr(KEY_SELECTED, 0);
 		this.inventory = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
@@ -126,7 +113,6 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 	protected void saveAdditional(ValueOutput out) {
 		super.saveAdditional(out);
 		out.putString(KEY_TRANSCRIPT, getTranscript());
-		out.putInt(KEY_FACING, facing.ordinal());
 		out.putInt(KEY_FUEL, fuel);
 		out.putInt(KEY_SELECTED, selectedSlot);
 		ContainerHelper.saveAllItems(out, inventory);

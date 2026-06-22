@@ -28,6 +28,7 @@ public final class MineSIerNet {
 		PayloadTypeRegistry.serverboundPlay().register(ProgramActionC2S.TYPE, ProgramActionC2S.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(TerminalScreenS2C.TYPE, TerminalScreenS2C.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(TurtleMoveS2C.TYPE, TurtleMoveS2C.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(TurtleTurnS2C.TYPE, TurtleTurnS2C.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(LoadProgramS2C.TYPE, LoadProgramS2C.CODEC);
 	}
 

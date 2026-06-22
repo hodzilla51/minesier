@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.block;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.TurtleApi;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
+import com.hodzilla51.minesier.net.TurtleTurnS2C;
 
 import java.util.List;
 
@@ -78,13 +79,28 @@ public class TurtleAccess implements TurtleApi {
 	@Override
 	public boolean turnLeft() {
 		facing = facing.getCounterClockWise();
+		applyFacing(false);
 		return true;
 	}
 
 	@Override
 	public boolean turnRight() {
 		facing = facing.getClockWise();
+		applyFacing(true);
 		return true;
+	}
+
+	/** Pushes the current facing into the block's state (syncs to clients) and animates the turn. */
+	private void applyFacing(boolean clockwise) {
+		BlockState here = level.getBlockState(pos);
+		if (here.is(ModContent.TURTLE_BLOCK)) {
+			level.setBlock(pos, here.setValue(TurtleBlock.FACING, facing), 3);
+		}
+		if (level instanceof ServerLevel serverLevel) {
+			for (ServerPlayer player : PlayerLookup.tracking(serverLevel, pos)) {
+				ServerPlayNetworking.send(player, new TurtleTurnS2C(pos, clockwise));
+			}
+		}
 	}
 
 	@Override
@@ -211,7 +227,7 @@ public class TurtleAccess implements TurtleApi {
 		if (!level.getBlockState(target).canBeReplaced()) {
 			return false; // blocked
 		}
-		level.setBlock(target, ModContent.TURTLE_BLOCK.defaultBlockState(), 3);
+		level.setBlock(target, ModContent.TURTLE_BLOCK.defaultBlockState().setValue(TurtleBlock.FACING, facing), 3);
 		level.removeBlock(pos, false);
 		// Tell nearby clients to slide the turtle in from where it came (smooth animation).
 		if (level instanceof ServerLevel serverLevel) {
