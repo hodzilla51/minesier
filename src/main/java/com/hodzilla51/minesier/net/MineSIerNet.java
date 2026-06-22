@@ -1,0 +1,119 @@
+package com.hodzilla51.minesier.net;
+
+import java.util.TreeSet;
+
+import com.hodzilla51.minesier.block.ComputerBlockEntity;
+import com.hodzilla51.minesier.block.ProgramStore;
+import com.hodzilla51.minesier.block.TurtleBlockEntity;
+import com.hodzilla51.minesier.turtle.TurtleManager;
+
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+
+/** Registers MineSIer's payload types (both sides) and the server-side receiver. */
+public final class MineSIerNet {
+	/** How close (squared, blocks) a player must be to drive a terminal. */
+	private static final double REACH_SQR = 8 * 8;
+
+	private MineSIerNet() {
+	}
+
+	/** Must run on BOTH client and server (common init) so the codecs are known. */
+	public static void registerPayloads() {
+		PayloadTypeRegistry.serverboundPlay().register(RunCommandC2S.TYPE, RunCommandC2S.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(ProgramActionC2S.TYPE, ProgramActionC2S.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(TerminalScreenS2C.TYPE, TerminalScreenS2C.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(TurtleMoveS2C.TYPE, TurtleMoveS2C.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(LoadProgramS2C.TYPE, LoadProgramS2C.CODEC);
+	}
+
+	/** Server-authoritative command execution. */
+	public static void registerServerReceivers() {
+		ServerPlayNetworking.registerGlobalReceiver(RunCommandC2S.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			// Network thread -> hop to the server thread before touching the world.
+			context.server().execute(() -> handleRun(player, payload));
+		});
+		ServerPlayNetworking.registerGlobalReceiver(ProgramActionC2S.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			context.server().execute(() -> handleProgram(player, payload));
+		});
+	}
+
+	private static void handleProgram(ServerPlayer player, ProgramActionC2S p) {
+		Level level = player.level();
+		BlockPos pos = p.pos();
+		if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR) {
+			return;
+		}
+		if (!(level.getBlockEntity(pos) instanceof ProgramStore store)) {
+			return;
+		}
+		if (p.action() == ProgramActionC2S.EJECT) {
+			ejectDisk(player, pos, store);
+			return;
+		}
+		if (!store.hasDisk()) {
+			note(player, pos, store, "no disk inserted");
+			return;
+		}
+		switch (p.action()) {
+			case ProgramActionC2S.SAVE -> {
+				store.saveProgram(p.name(), p.source());
+				note(player, pos, store, "saved: " + p.name());
+			}
+			case ProgramActionC2S.LOAD -> {
+				String source = store.loadProgram(p.name());
+				if (source != null) {
+					ServerPlayNetworking.send(player, new LoadProgramS2C(source));
+				} else {
+					note(player, pos, store, "no such program: " + p.name());
+				}
+			}
+			case ProgramActionC2S.LIST -> note(player, pos, store,
+				"programs: " + String.join(", ", new TreeSet<>(store.programNames())));
+			case ProgramActionC2S.DELETE -> {
+				store.deleteProgram(p.name());
+				note(player, pos, store, "deleted: " + p.name());
+			}
+			default -> {
+			}
+		}
+	}
+
+	private static void ejectDisk(ServerPlayer player, BlockPos pos, ProgramStore store) {
+		ItemStack disk = store.getDisk();
+		if (disk.isEmpty()) {
+			note(player, pos, store, "no disk to eject");
+			return;
+		}
+		store.setDisk(ItemStack.EMPTY);
+		player.drop(disk, false);
+		note(player, pos, store, "ejected disk");
+	}
+
+	/** Sends a transient status line appended to the current transcript (not persisted). */
+	private static void note(ServerPlayer player, BlockPos pos, ProgramStore store, String line) {
+		ServerPlayNetworking.send(player, new TerminalScreenS2C(pos, store.getTranscript() + "\n" + line, false));
+	}
+
+	private static void handleRun(ServerPlayer player, RunCommandC2S payload) {
+		Level level = player.level();
+		BlockPos pos = payload.pos();
+		double distSqr = player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+		if (distSqr > REACH_SQR) {
+			return; // too far — ignore (anti-cheat / stale packet)
+		}
+		if (level.getBlockEntity(pos) instanceof TurtleBlockEntity) {
+			// Turtle programs run tick-paced on a worker thread; the manager drives + replies.
+			TurtleManager.run(level, pos, player, payload.command());
+		} else if (level.getBlockEntity(pos) instanceof ComputerBlockEntity computer) {
+			computer.runCommand(payload.command());
+			ServerPlayNetworking.send(player, new TerminalScreenS2C(pos, computer.getTranscript(), false));
+		}
+	}
+}
