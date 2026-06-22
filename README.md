@@ -1,9 +1,115 @@
 # MineSIer
 
-## Setup
+[English](./README.md) · [日本語](./README.ja.md)
 
-For setup instructions, please see the [Fabric Documentation page](https://docs.fabricmc.net/develop/getting-started/creating-a-project#setting-up) related to the IDE that you are using.
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Minecraft 26.2](https://img.shields.io/badge/Minecraft-26.2-green.svg)
+![Loader: Fabric](https://img.shields.io/badge/Loader-Fabric-blueviolet.svg)
+
+**Write JavaScript inside Minecraft.** Programmable computers and turtles you can
+code from within the world — in the spirit of [CC:Tweaked](https://tweaked.cc/),
+but in JavaScript instead of Lua.
+
+> ⚠️ **Experimental / early development.** Targets Minecraft 26.2 (Fabric). Things
+> may change. Feedback and contributions welcome.
+
+## Features
+
+- **Computer block** — place it, right-click to open a terminal with a multi-line
+  editor. Write JavaScript, hit **Run** (or `Ctrl`/`Cmd`+`Enter`), see the output.
+- **`print(...)`** and a scrollback transcript, so programs emit more than a value.
+- **Sandboxed VM per block** — each computer runs its own isolated JavaScript engine
+  (no host file/network/reflection access; runaway loops are cut off).
+- **Programmable turtle** — a robot you move and command with code:
+  `forward` / `back` / `turnLeft` / `turnRight`, `dig` / `place`, `detect` /
+  `inspect`, fuel. It moves **one block at a time with smooth animation**, and
+  reacts to the world as it runs.
+- **Inventory** — turtles collect what they dig and place from a selected slot.
+- **Disks** — save programs onto a disk item. The data lives on the disk, so you can
+  pop it out and carry your programs to another computer.
+- **Persistent** — computer/turtle state is saved with the world.
+
+## Quick start
+
+Get the blocks (creative or commands):
+
+```
+/give @s minesier:computer
+/give @s minesier:turtle
+/give @s minesier:disk
+```
+
+**Computer** — place it, right-click, type and Run:
+
+```js
+1 + 1                       // => 2
+for (var i = 0; i < 3; i++) print("hello " + i);
+```
+
+**Turtle** — place it (it faces the way you're looking), right-click, and run a
+program. This digs forward 5 blocks, mining anything in the way:
+
+```js
+for (var i = 0; i < 5; i++) {
+  if (turtle.detect()) turtle.dig();
+  turtle.forward();
+}
+print("done, fuel = " + turtle.getFuelLevel());
+```
+
+**Disks** — hold a disk and right-click a computer/turtle to insert it. Write a
+program, type a name, and press **Save**. Press **Eject**, carry the disk to
+another computer, insert it, and **Load** — your program comes with it.
+
+### Turtle API
+
+`forward()` `back()` `turnLeft()` `turnRight()` `dig()` `place()` (from the
+selected slot) `place(id)` (e.g. `"minecraft:stone"`) `detect()` `inspect()`
+`getFuelLevel()` `refuel(n)` `select(n)` `getSelectedSlot()` `getItemCount(n)`
+
+Global: `print(...)`. There is also a `/js <expression>` command for one-off evaluation.
+
+## Building from source
+
+Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
+
+```
+./gradlew build        # produces build/libs/minesier-*.jar
+./gradlew runClient    # launch a dev client
+```
+
+## How it works
+
+- JavaScript runs on **Mozilla Rhino** in interpreted mode, sandboxed with a
+  safe scope + a deny-all class shutter + an instruction-count limit.
+- Execution is **server-authoritative** — the client only shows the terminal and
+  sends commands.
+- Turtle programs run **tick-paced** on a worker thread that hands each action to
+  the server tick, so actions take real time (and the program can react to results).
+  Movement is a CC-style block "hop" drawn with a custom renderer for the slide.
+- Saved programs are stored as a **data component** on the disk item, so the data
+  travels with the medium rather than being tied to a position.
+
+## Roadmap
+
+- ✅ JS engine, computer + terminal/editor, programmable turtle, disks
+- ⏳ Networking between computers (modems / rednet)
+- ⏳ Peripherals (monitors, redstone I/O)
+- 🌟 In-game code editor with type completion
+- 🔭 NeoForge support
+
+## Contributing
+
+Issues and pull requests are welcome. Working language is English.
 
 ## License
 
-This template is available under the CC0 license. Feel free to learn from it and incorporate it in your own projects.
+MIT — see [LICENSE](./LICENSE).
+
+This mod bundles [Mozilla Rhino](https://github.com/mozilla/rhino) (MPL-2.0); see
+[THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
+
+## Acknowledgements
+
+Inspired by [CC:Tweaked](https://tweaked.cc/). Built with
+[Mozilla Rhino](https://github.com/mozilla/rhino) and [Fabric](https://fabricmc.net/).
