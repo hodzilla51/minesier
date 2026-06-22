@@ -3,15 +3,13 @@
 	"id": "minesier",
 	"version": "${version}",
 	"name": "MineSIer",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "In-world JavaScript programming for Minecraft: programmable computers and turtles, in the spirit of CC:Tweaked.",
 	"authors": [
-		"Me!"
+		"hodzilla51"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
 	},
-	"license": "CC0-1.0",
+	"license": "MIT",
 	"icon": "assets/minesier/icon.png",
 	"environment": "*",
 	"entrypoints": {
