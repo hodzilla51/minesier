@@ -29,6 +29,14 @@ public class TurtleBlockEntityRenderer implements BlockEntityRenderer<TurtleBloc
 	}
 
 	@Override
+	public boolean shouldRenderOffScreen() {
+		// The turtle slides/rotates up to a block outside its own cell during a move;
+		// declare off-screen rendering so it isn't culled (and to avoid the dev render
+		// bounds warning) when only the source/target cell is just out of view.
+		return true;
+	}
+
+	@Override
 	public TurtleRenderState createRenderState() {
 		return new TurtleRenderState();
 	}
