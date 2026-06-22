@@ -8,6 +8,9 @@
 		"hodzilla51"
 	],
 	"contact": {
+		"homepage": "https://github.com/hodzilla51/minesier",
+		"sources": "https://github.com/hodzilla51/minesier",
+		"issues": "https://github.com/hodzilla51/minesier/issues"
 	},
 	"license": "MIT",
 	"icon": "assets/minesier/icon.png",
