@@ -13,10 +13,13 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -49,6 +52,23 @@ public final class ModContent {
 
 	/** A floppy-style disk: portable storage for programs. */
 	public static final Item DISK = registerDisk();
+
+	/** Creative tab gathering all MineSIer content. */
+	public static final CreativeModeTab TAB = registerTab();
+
+	private static CreativeModeTab registerTab() {
+		Identifier id = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "main");
+		CreativeModeTab tab = CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
+			.title(Component.translatable("itemGroup.minesier.main"))
+			.icon(() -> new ItemStack(COMPUTER_BLOCK))
+			.displayItems((params, output) -> {
+				output.accept(COMPUTER_BLOCK);
+				output.accept(TURTLE_BLOCK);
+				output.accept(DISK);
+			})
+			.build();
+		return Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, id, tab);
+	}
 
 	private static Item registerDisk() {
 		Identifier id = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "disk");
