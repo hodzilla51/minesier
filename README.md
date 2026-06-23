@@ -138,6 +138,23 @@ net.send("gateway-mac-address", ip.encode(packet));
 
 `ip.forward(packet)` decrements TTL and returns `null` when it reaches zero.
 
+### Cryptography
+
+`crypto` exposes standard primitives for player-built VPNs and authenticated
+protocols. Binary values are Base64 strings. Use X25519 to establish a shared
+secret, HKDF-SHA-256 to derive an AES key, and AES-GCM to encrypt and authenticate
+payloads.
+
+```js
+var keys = crypto.x25519KeyPair();
+// Exchange keys.publicKey with the peer, then:
+var shared = crypto.x25519SharedSecret(keys.privateKey, peerPublicKey);
+var key = crypto.hkdfSha256(shared, "", "minesier-vpn-v1", 32);
+var encrypted = crypto.aesGcmEncrypt(key, "hello");
+```
+
+Also available: `randomBytes(count)`, `sha256(data)`, and `hmacSha256(key, data)`.
+
 ## Building from source
 
 Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).

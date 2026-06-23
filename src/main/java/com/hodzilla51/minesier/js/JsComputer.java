@@ -119,6 +119,14 @@ public final class JsComputer {
 			if (scope == null) {
 				scope = cx.initSafeStandardObjects();
 				ScriptableObject.putProperty(scope, "print", new PrintFunction());
+				ScriptableObject cryptoObj = (ScriptableObject) cx.newObject(scope);
+				for (String op : new String[] {
+					"randomBytes", "sha256", "hmacSha256", "hkdfSha256",
+					"aesGcmEncrypt", "aesGcmDecrypt", "x25519KeyPair", "x25519SharedSecret"
+				}) {
+					ScriptableObject.putProperty(cryptoObj, op, new CryptoFunction(op));
+				}
+				ScriptableObject.putProperty(scope, "crypto", cryptoObj);
 				ScriptableObject ipObj = (ScriptableObject) cx.newObject(scope);
 				for (String op : new String[] { "create", "encode", "decode", "forward" }) {
 					ScriptableObject.putProperty(ipObj, op, new IpFunction(op));
@@ -157,6 +165,68 @@ public final class JsComputer {
 			Context.exit();
 		}
 		return out;
+	}
+
+	/** Cryptographic functions backed by the JDK's standard providers. */
+	private final class CryptoFunction extends BaseFunction {
+		private final String op;
+
+		CryptoFunction(String op) { this.op = op; }
+
+		@Override
+		public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+			return switch (op) {
+				case "randomBytes" -> CryptoApi.randomBytes(integer(args, 0));
+				case "sha256" -> CryptoApi.sha256(string(args, 0));
+				case "hmacSha256" -> CryptoApi.hmacSha256(string(args, 0), string(args, 1));
+				case "hkdfSha256" -> CryptoApi.hkdfSha256(string(args, 0), string(args, 1), string(args, 2), integer(args, 3));
+				case "aesGcmEncrypt" -> encryptedObject(cx, scope, CryptoApi.aesGcmEncrypt(string(args, 0), string(args, 1), optionalString(args, 2)));
+				case "aesGcmDecrypt" -> CryptoApi.aesGcmDecrypt(string(args, 0), string(args, 1), string(args, 2), optionalString(args, 3));
+				case "x25519KeyPair" -> keyPairObject(cx, scope, CryptoApi.x25519KeyPair());
+				case "x25519SharedSecret" -> CryptoApi.x25519SharedSecret(string(args, 0), string(args, 1));
+				default -> null;
+			};
+		}
+
+		private String string(Object[] args, int index) {
+			if (args.length <= index) throw new IllegalArgumentException("missing argument " + (index + 1));
+			return Context.toString(args[index]);
+		}
+
+		private String optionalString(Object[] args, int index) {
+			return args.length > index ? Context.toString(args[index]) : "";
+		}
+
+		private int integer(Object[] args, int index) {
+			if (args.length <= index) throw new IllegalArgumentException("missing argument " + (index + 1));
+			return (int) Context.toNumber(args[index]);
+		}
+
+		private Object encryptedObject(Context cx, Scriptable scope, CryptoApi.Encrypted encrypted) {
+			ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+			ScriptableObject.putProperty(object, "nonce", encrypted.nonce());
+			ScriptableObject.putProperty(object, "ciphertext", encrypted.ciphertext());
+			ScriptableObject.putProperty(object, "toString", new BaseFunction() {
+				@Override
+				public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
+					return "[AES-GCM ciphertext]";
+				}
+			});
+			return object;
+		}
+
+		private Object keyPairObject(Context cx, Scriptable scope, CryptoApi.X25519KeyPair pair) {
+			ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+			ScriptableObject.putProperty(object, "privateKey", pair.privateKey());
+			ScriptableObject.putProperty(object, "publicKey", pair.publicKey());
+			ScriptableObject.putProperty(object, "toString", new BaseFunction() {
+				@Override
+				public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
+					return "[X25519 key pair]";
+				}
+			});
+			return object;
+		}
 	}
 
 	/** IPv4-inspired packet helpers for player-written layer-3 protocols. */
