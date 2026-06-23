@@ -84,8 +84,29 @@ if (frame) print(frame.source, frame.data);
 ```
 
 Payloads are currently strings up to 4 KiB and each NIC queues up to 64 frames.
-Switching, multiple NICs, promiscuous receive, and routing will be added in the
-next slice in a form programs can implement themselves.
+
+### Multiple NICs and promiscuous receive
+
+Every computer face is a separate NIC. `front` is the screen face; `back` is the
+opposite face, and is the interface used by the original `net.*` shortcuts.
+`left`, `right`, `up`, and `down` are relative to the computer. `forward` is an
+alias for `front`.
+
+```js
+var front = net.nic("front");
+var back = net.nic("back");
+
+print(front.address());
+front.setPromiscuous(true);
+
+var frame = front.receive();
+if (frame) back.forward(frame); // preserve source and destination: a simple bridge
+```
+
+`send(destination, data)` originates a new frame with that NIC's address as its
+source. `forward(frame)` sends an existing frame unchanged, which is the basis
+for player-written switches. There is no background listener yet: programs read
+and forward the frames queued at the time they run.
 
 ## Building from source
 

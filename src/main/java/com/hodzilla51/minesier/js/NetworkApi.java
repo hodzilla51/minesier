@@ -11,4 +11,15 @@ public interface NetworkApi {
 
 	/** Returns the next frame accepted by this NIC, or {@code null} when none is queued. */
 	NetworkFrame receive();
+
+	/** Returns an interface address, or {@code null} for an unknown interface name. */
+	String address(String interfaceName);
+
+	boolean send(String interfaceName, String destination, String data);
+
+	NetworkFrame receive(String interfaceName);
+
+	boolean forward(String interfaceName, NetworkFrame frame);
+
+	boolean setPromiscuous(String interfaceName, boolean enabled);
 }

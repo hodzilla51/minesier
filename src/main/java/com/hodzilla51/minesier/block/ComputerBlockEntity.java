@@ -3,7 +3,9 @@ package com.hodzilla51.minesier.block;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import com.hodzilla51.minesier.ModContent;
@@ -13,6 +15,7 @@ import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -40,14 +43,15 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 	private final JsComputer computer = new JsComputer();
 
 	private final List<String> transcript = new ArrayList<>(List.of(WELCOME));
-	private final Deque<NetworkFrame> inbox = new ArrayDeque<>();
+	private final EnumMap<Direction, NicState> nics = new EnumMap<>(Direction.class);
 	private ItemStack disk = ItemStack.EMPTY;
 	private String networkAddress = formatAddress(UUID.randomUUID());
-	/** Kept in the NIC model now; slice 2 will expose a JS control for it. */
-	private boolean promiscuous;
 
 	public ComputerBlockEntity(BlockPos pos, BlockState state) {
 		super(ModContent.COMPUTER_BLOCK_ENTITY, pos, state);
+		for (Direction direction : Direction.values()) {
+			nics.put(direction, new NicState());
+		}
 		computer.setNetwork(new ComputerNetworkApi());
 	}
 
@@ -55,17 +59,46 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 		return networkAddress;
 	}
 
-	/** Called by the physical cable medium. Default NICs only accept frames addressed to themselves. */
-	public void offerFrame(NetworkFrame frame) {
-		if ((!promiscuous && !networkAddress.equals(frame.destination())) || inbox.size() >= MAX_INBOX_FRAMES) {
+	/** Called by the physical cable medium for the NIC attached to {@code face}. */
+	public void offerFrame(Direction face, NetworkFrame frame) {
+		NicState nic = nics.get(face);
+		if (nic == null || (!nic.promiscuous && !addressFor(face).equals(frame.destination()))
+				|| nic.inbox.size() >= MAX_INBOX_FRAMES) {
 			return;
 		}
-		inbox.addLast(frame);
+		nic.inbox.addLast(frame);
 		setChanged();
 	}
 
-	private NetworkFrame receiveFrame() {
-		return inbox.pollFirst();
+	private NetworkFrame receiveFrame(Direction face) {
+		NicState nic = nics.get(face);
+		return nic == null ? null : nic.inbox.pollFirst();
+	}
+
+	private Direction legacyFace() {
+		return getBlockState().getValue(ComputerBlock.FACING).getOpposite();
+	}
+
+	private String addressFor(Direction face) {
+		if (face == legacyFace()) {
+			return networkAddress;
+		}
+		return formatAddress(UUID.nameUUIDFromBytes(
+				(networkAddress + "/" + face.getSerializedName()).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+	}
+
+	/** Resolves a player-facing NIC name against this computer's screen direction. */
+	private Direction parseFace(String name) {
+		Direction front = getBlockState().getValue(ComputerBlock.FACING);
+		return switch (name.toLowerCase(Locale.ROOT)) {
+			case "front", "forward" -> front;
+			case "back" -> front.getOpposite();
+			case "left" -> front.getCounterClockWise();
+			case "right" -> front.getClockWise();
+			case "up" -> Direction.UP;
+			case "down" -> Direction.DOWN;
+			default -> null;
+		};
 	}
 
 	/** Runs one program in this computer's VM, appending the echoed input + output to the transcript. */
@@ -148,21 +181,69 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 	private final class ComputerNetworkApi implements NetworkApi {
 		@Override
 		public String address() {
-			return networkAddress;
+			return addressFor(legacyFace());
 		}
 
 		@Override
 		public boolean send(String destination, String data) {
-			if (!(level instanceof ServerLevel serverLevel)
-					|| destination.isBlank() || data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
-				return false;
-			}
-			return CableNetwork.send(serverLevel, worldPosition, new NetworkFrame(networkAddress, destination, data));
+			return send(legacyFace(), destination, data);
 		}
 
 		@Override
 		public NetworkFrame receive() {
-			return receiveFrame();
+			return receiveFrame(legacyFace());
 		}
+
+		@Override
+		public String address(String interfaceName) {
+			Direction face = parseFace(interfaceName);
+			return face == null ? null : addressFor(face);
+		}
+
+		@Override
+		public boolean send(String interfaceName, String destination, String data) {
+			Direction face = parseFace(interfaceName);
+			return face != null && send(face, destination, data);
+		}
+
+		private boolean send(Direction face, String destination, String data) {
+			if (!(level instanceof ServerLevel serverLevel)
+					|| destination.isBlank() || data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
+				return false;
+			}
+			return CableNetwork.send(serverLevel, worldPosition, face, new NetworkFrame(addressFor(face), destination, data));
+		}
+
+		@Override
+		public NetworkFrame receive(String interfaceName) {
+			Direction face = parseFace(interfaceName);
+			return face == null ? null : receiveFrame(face);
+		}
+
+		@Override
+		public boolean forward(String interfaceName, NetworkFrame frame) {
+			Direction face = parseFace(interfaceName);
+			if (!(level instanceof ServerLevel serverLevel) || face == null || frame.destination().isBlank()
+					|| frame.data().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
+				return false;
+			}
+			return CableNetwork.send(serverLevel, worldPosition, face, frame);
+		}
+
+		@Override
+		public boolean setPromiscuous(String interfaceName, boolean enabled) {
+			Direction face = parseFace(interfaceName);
+			NicState nic = face == null ? null : nics.get(face);
+			if (nic == null) {
+				return false;
+			}
+			nic.promiscuous = enabled;
+			return true;
+		}
+	}
+
+	private static final class NicState {
+		final Deque<NetworkFrame> inbox = new ArrayDeque<>();
+		boolean promiscuous;
 	}
 }

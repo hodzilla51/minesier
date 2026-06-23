@@ -5,7 +5,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.hodzilla51.minesier.ModContent;
-import com.hodzilla51.minesier.block.ComputerBlock;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 
 import net.minecraft.core.BlockPos;
@@ -28,8 +27,8 @@ public final class CableNetwork {
 	}
 
 	/** @return whether a cable segment was attached to the source NIC. */
-	public static boolean send(ServerLevel level, BlockPos source, NetworkFrame frame) {
-		BlockPos firstCable = source.relative(nicFacing(level, source));
+	public static boolean send(ServerLevel level, BlockPos source, Direction sourceFace, NetworkFrame frame) {
+		BlockPos firstCable = source.relative(sourceFace);
 		if (!level.hasChunkAt(firstCable) || !isCable(level.getBlockState(firstCable))) {
 			return false;
 		}
@@ -53,9 +52,8 @@ public final class CableNetwork {
 						pending.addLast(adjacent);
 					}
 				} else if (state.is(ModContent.COMPUTER_BLOCK)
-						&& nicFacing(level, adjacent) == direction.getOpposite()
 						&& level.getBlockEntity(adjacent) instanceof ComputerBlockEntity computer) {
-					computer.offerFrame(frame);
+					computer.offerFrame(direction.getOpposite(), frame);
 				}
 			}
 		}
@@ -66,8 +64,4 @@ public final class CableNetwork {
 		return state.is(ModContent.CABLE_BLOCK);
 	}
 
-	/** Slice 1 has one NIC: the face opposite the screen. */
-	private static Direction nicFacing(ServerLevel level, BlockPos pos) {
-		return level.getBlockState(pos).getValue(ComputerBlock.FACING).getOpposite();
-	}
 }

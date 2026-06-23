@@ -83,7 +83,7 @@ public final class JsComputer {
 				}
 				if (network != null) {
 					ScriptableObject netObj = (ScriptableObject) cx.newObject(scope);
-					for (String op : new String[] { "address", "send", "receive" }) {
+					for (String op : new String[] { "address", "send", "receive", "nic" }) {
 						ScriptableObject.putProperty(netObj, op, new NetworkFunction(op));
 					}
 					ScriptableObject.putProperty(scope, "net", netObj);
@@ -124,8 +124,74 @@ public final class JsComputer {
 				case "send" -> args.length >= 2
 					? net.send(Context.toString(args[0]), Context.toString(args[1])) : Boolean.FALSE;
 				case "receive" -> toScriptFrame(cx, scope, net.receive());
+				case "nic" -> args.length >= 1 ? createNicObject(cx, scope, net, Context.toString(args[0])) : null;
 				default -> null;
 			};
+		}
+
+		private Object createNicObject(Context cx, Scriptable scope, NetworkApi net, String interfaceName) {
+			if (net.address(interfaceName) == null) {
+				return null;
+			}
+			ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+			for (String op : new String[] { "address", "send", "receive", "forward", "setPromiscuous" }) {
+				ScriptableObject.putProperty(object, op, new NicFunction(interfaceName, op));
+			}
+			return object;
+		}
+
+		private Object toScriptFrame(Context cx, Scriptable scope, NetworkFrame frame) {
+			if (frame == null) {
+				return null;
+			}
+			ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+			ScriptableObject.putProperty(object, "source", frame.source());
+			ScriptableObject.putProperty(object, "destination", frame.destination());
+			ScriptableObject.putProperty(object, "data", frame.data());
+			ScriptableObject.putProperty(object, "toString", new BaseFunction() {
+				@Override
+				public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
+					return frame.source() + " -> " + frame.destination() + ": " + frame.data();
+				}
+			});
+			return object;
+		}
+	}
+
+	/** A method on one physical network interface. */
+	private final class NicFunction extends BaseFunction {
+		private final String interfaceName;
+		private final String op;
+
+		NicFunction(String interfaceName, String op) {
+			this.interfaceName = interfaceName;
+			this.op = op;
+		}
+
+		@Override
+		public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+			NetworkApi net = network;
+			if (net == null) {
+				return null;
+			}
+			return switch (op) {
+				case "address" -> net.address(interfaceName);
+				case "send" -> args.length >= 2
+					? net.send(interfaceName, Context.toString(args[0]), Context.toString(args[1])) : Boolean.FALSE;
+				case "receive" -> toScriptFrame(cx, scope, net.receive(interfaceName));
+				case "forward" -> args.length >= 1 && args[0] instanceof Scriptable frame
+					? net.forward(interfaceName, fromScriptFrame(frame)) : Boolean.FALSE;
+				case "setPromiscuous" -> args.length >= 1
+					? net.setPromiscuous(interfaceName, Context.toBoolean(args[0])) : Boolean.FALSE;
+				default -> null;
+			};
+		}
+
+		private NetworkFrame fromScriptFrame(Scriptable frame) {
+			return new NetworkFrame(
+				Context.toString(ScriptableObject.getProperty(frame, "source")),
+				Context.toString(ScriptableObject.getProperty(frame, "destination")),
+				Context.toString(ScriptableObject.getProperty(frame, "data")));
 		}
 
 		private Object toScriptFrame(Context cx, Scriptable scope, NetworkFrame frame) {
