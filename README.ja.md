@@ -81,8 +81,12 @@ var frame = net.receive();            // null when no frame is queued
 if (frame) print(frame.source, frame.data);
 ```
 
-現在は文字列ペイロード、4 KiBまで、NICごとに64フレームまでです。スイッチング、複数NIC、
-promiscuous受信、ルーティングは次のスライスでプレイヤー実装できる形で追加します。
+現在は文字列ペイロード、4 KiBまで、NICごとに64フレームまでです。複数NIC・promiscuous受信・
+スイッチ/ルータのプレイヤー実装は対応済みです（詳細は英語READMEを参照）。
+
+`net.broadcast()` はL2ブロードキャストアドレスを返します。同じセグメントの全NICが受理するので、
+これを使ってARP（「このアドレス誰？」を全員に問い合わせ→所有者がunicastで返答）を自分で実装できます。
+ARPはあえて組み込みにしていません——自分で作るのが目的です。
 
 ## ソースからのビルド
 

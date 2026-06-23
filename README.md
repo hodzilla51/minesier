@@ -85,6 +85,27 @@ if (frame) print(frame.source, frame.data);
 
 Payloads are currently strings up to 4 KiB and each NIC queues up to 64 frames.
 
+### Broadcast and address resolution (ARP)
+
+`net.broadcast()` returns the L2 broadcast address — every NIC on the segment
+accepts a frame sent to it. That's the primitive you need to write address
+resolution yourself: ask "who has this address?" to everyone, and let the owner
+answer. ARP is intentionally not built in — you build it, which is the point.
+
+```js
+// Responder: answer "who-has" broadcasts for my logical name.
+net.nic("back").onReceive(function (frame) {
+  if (frame.destination === net.broadcast() && frame.data === "who-has:node-a") {
+    net.send(frame.source, "is-at:node-a");   // unicast reply with my MAC
+  }
+});
+
+// Requester: find node-a's MAC, then talk to it directly.
+net.send(net.broadcast(), "who-has:node-a");
+var reply = net.receive();                     // "is-at:node-a" from node-a's MAC
+if (reply) net.send(reply.source, "hello node-a");
+```
+
 ### Multiple NICs and promiscuous receive
 
 Every computer face is a separate NIC. `front` is the screen face; `back` is the

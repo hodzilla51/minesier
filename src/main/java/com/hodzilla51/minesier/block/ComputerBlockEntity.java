@@ -64,7 +64,9 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 	/** Called by the physical cable medium for the NIC attached to {@code face}. */
 	public void offerFrame(Direction face, NetworkFrame frame) {
 		NicState nic = nics.get(face);
-		if (nic == null || (!nic.promiscuous && !addressFor(face).equals(frame.destination()))) {
+		boolean addressedToMe = addressFor(face).equals(frame.destination())
+			|| NetworkFrame.BROADCAST.equals(frame.destination());
+		if (nic == null || (!nic.promiscuous && !addressedToMe)) {
 			return;
 		}
 		if (nic.listener != null) {

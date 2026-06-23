@@ -12,6 +12,9 @@ public record NetworkFrame(String source, String destination, String data, int h
 	/** Max forwards before a frame is dropped (loop guard). */
 	public static final int MAX_HOPS = 16;
 
+	/** L2 broadcast destination: every NIC on the segment accepts a frame sent here. */
+	public static final String BROADCAST = "ff:ff:ff:ff:ff:ff";
+
 	/** A freshly originated frame (zero hops). */
 	public NetworkFrame(String source, String destination, String data) {
 		this(source, destination, data, 0);

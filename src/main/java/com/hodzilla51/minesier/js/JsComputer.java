@@ -146,7 +146,7 @@ public final class JsComputer {
 				}
 				if (network != null) {
 					ScriptableObject netObj = (ScriptableObject) cx.newObject(scope);
-					for (String op : new String[] { "address", "send", "receive", "nic" }) {
+					for (String op : new String[] { "address", "send", "receive", "nic", "broadcast" }) {
 						ScriptableObject.putProperty(netObj, op, new NetworkFunction(op));
 					}
 					ScriptableObject.putProperty(scope, "net", netObj);
@@ -322,6 +322,7 @@ public final class JsComputer {
 					? net.send(Context.toString(args[0]), Context.toString(args[1])) : Boolean.FALSE;
 				case "receive" -> toScriptFrame(cx, scope, net.receive());
 				case "nic" -> args.length >= 1 ? createNicObject(cx, scope, net, Context.toString(args[0])) : null;
+				case "broadcast" -> NetworkFrame.BROADCAST;
 				default -> null;
 			};
 		}
