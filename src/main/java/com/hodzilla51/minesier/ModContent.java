@@ -90,8 +90,10 @@ public final class ModContent {
 
 	private static Block registerBlock(Identifier id, Function<BlockBehaviour.Properties, Block> factory) {
 		ResourceKey<Block> blockKey = ResourceKey.create(Registries.BLOCK, id);
+		// No requiresCorrectToolForDrops(): without mineable/tool tags it would block all
+		// drops; these machine blocks simply drop themselves (loot tables) when mined.
 		Block block = Registry.register(BuiltInRegistries.BLOCK, id,
-			factory.apply(BlockBehaviour.Properties.of().strength(2.0F).requiresCorrectToolForDrops().setId(blockKey)));
+			factory.apply(BlockBehaviour.Properties.of().strength(2.0F).setId(blockKey)));
 
 		ResourceKey<Item> itemKey = ResourceKey.create(Registries.ITEM, id);
 		Registry.register(BuiltInRegistries.ITEM, id,
