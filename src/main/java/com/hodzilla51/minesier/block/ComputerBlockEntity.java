@@ -1,7 +1,6 @@
 package com.hodzilla51.minesier.block;
 
 import java.util.ArrayList;
-import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.EnumMap;
 import java.util.List;
@@ -303,9 +302,11 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 	}
 
 	private static final class NicState {
-		final Deque<NetworkFrame> inbox = new ArrayDeque<>();
-		boolean promiscuous;
-		NetworkListener listener;
+		// Concurrent so a future off-thread producer (e.g. networked turtles, whose VM
+		// runs on a worker thread) can't corrupt the inbox vs. the server-thread reader.
+		final Deque<NetworkFrame> inbox = new java.util.concurrent.ConcurrentLinkedDeque<>();
+		volatile boolean promiscuous;
+		volatile NetworkListener listener;
 	}
 
 	@Override
