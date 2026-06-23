@@ -5,6 +5,8 @@ import java.util.function.Function;
 import com.hodzilla51.minesier.block.ComputerBlock;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.CableBlock;
+import com.hodzilla51.minesier.block.SwitchBlock;
+import com.hodzilla51.minesier.block.SwitchBlockEntity;
 import com.hodzilla51.minesier.block.TurtleBlock;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.item.DiskContents;
@@ -33,14 +35,18 @@ public final class ModContent {
 
 	public static final Identifier COMPUTER_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "computer");
 	public static final Identifier CABLE_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "cable");
+	public static final Identifier SWITCH_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "switch");
 	public static final Identifier TURTLE_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "turtle");
 
 	public static final Block COMPUTER_BLOCK = registerBlock(COMPUTER_ID, ComputerBlock::new);
 	public static final Block CABLE_BLOCK = registerBlock(CABLE_ID, CableBlock::new);
+	public static final Block SWITCH_BLOCK = registerBlock(SWITCH_ID, SwitchBlock::new);
 	public static final Block TURTLE_BLOCK = registerBlock(TURTLE_ID, TurtleBlock::new);
 
 	public static final BlockEntityType<ComputerBlockEntity> COMPUTER_BLOCK_ENTITY =
 		registerBlockEntity(COMPUTER_ID, ComputerBlockEntity::new, COMPUTER_BLOCK);
+	public static final BlockEntityType<SwitchBlockEntity> SWITCH_BLOCK_ENTITY =
+		registerBlockEntity(SWITCH_ID, SwitchBlockEntity::new, SWITCH_BLOCK);
 	public static final BlockEntityType<TurtleBlockEntity> TURTLE_BLOCK_ENTITY =
 		registerBlockEntity(TURTLE_ID, TurtleBlockEntity::new, TURTLE_BLOCK);
 
@@ -67,6 +73,7 @@ public final class ModContent {
 			.displayItems((params, output) -> {
 				output.accept(COMPUTER_BLOCK);
 				output.accept(CABLE_BLOCK);
+				output.accept(SWITCH_BLOCK);
 				output.accept(TURTLE_BLOCK);
 				output.accept(DISK);
 			})

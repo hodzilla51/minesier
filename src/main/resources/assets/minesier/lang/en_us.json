@@ -1,6 +1,7 @@
 {
   "block.minesier.computer": "Computer",
   "block.minesier.cable": "Cable",
+  "block.minesier.switch": "Switch",
   "block.minesier.turtle": "Turtle",
   "item.minesier.disk": "Disk",
   "itemGroup.minesier.main": "MineSIer"

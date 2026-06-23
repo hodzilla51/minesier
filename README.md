@@ -115,6 +115,14 @@ The repository includes [a two-port bridge](examples/two_port_bridge.js) and
 programs rather than special blocks: the same multi-NIC computer can be a host,
 a bridge, a switch, or a router depending on the code loaded into it.
 
+### Managed switch
+
+The Switch block is a six-port learning switch for quick, beginner-friendly L2
+networks. It learns source addresses per ingress port, unicasts known destinations,
+and floods unknown destinations to every other connected port. It has no spanning
+tree protocol: physical loops are bounded by the network event queue, but should be
+avoided unless you are deliberately experimenting with loop behaviour.
+
 ## Building from source
 
 Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
