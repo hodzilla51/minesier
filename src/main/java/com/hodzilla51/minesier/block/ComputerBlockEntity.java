@@ -241,7 +241,12 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 					|| frame.data().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
 				return false;
 			}
-			return CableNetwork.send(serverLevel, worldPosition, face, frame);
+			// Advance one hop; drop at the limit so a player-built switch can't loop forever either.
+			NetworkFrame forwarded = frame.nextHop();
+			if (forwarded == null) {
+				return false;
+			}
+			return CableNetwork.send(serverLevel, worldPosition, face, forwarded);
 		}
 
 		@Override

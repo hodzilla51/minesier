@@ -90,6 +90,7 @@ public final class JsComputer {
 		ScriptableObject.putProperty(object, "source", frame.source());
 		ScriptableObject.putProperty(object, "destination", frame.destination());
 		ScriptableObject.putProperty(object, "data", frame.data());
+		ScriptableObject.putProperty(object, "hops", frame.hops());
 		ScriptableObject.putProperty(object, "toString", new BaseFunction() {
 			@Override
 			public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
@@ -346,6 +347,7 @@ public final class JsComputer {
 			ScriptableObject.putProperty(object, "source", frame.source());
 			ScriptableObject.putProperty(object, "destination", frame.destination());
 			ScriptableObject.putProperty(object, "data", frame.data());
+			ScriptableObject.putProperty(object, "hops", frame.hops());
 			ScriptableObject.putProperty(object, "toString", new BaseFunction() {
 				@Override
 				public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
@@ -389,10 +391,14 @@ public final class JsComputer {
 		}
 
 		private NetworkFrame fromScriptFrame(Scriptable frame) {
+			Object hops = ScriptableObject.getProperty(frame, "hops");
+			int hopCount = hops instanceof Number n ? Math.max(0, n.intValue())
+				: hops == Scriptable.NOT_FOUND ? 0 : (int) Math.max(0, Context.toNumber(hops));
 			return new NetworkFrame(
 				Context.toString(ScriptableObject.getProperty(frame, "source")),
 				Context.toString(ScriptableObject.getProperty(frame, "destination")),
-				Context.toString(ScriptableObject.getProperty(frame, "data")));
+				Context.toString(ScriptableObject.getProperty(frame, "data")),
+				hopCount);
 		}
 
 		private Object toScriptFrame(Context cx, Scriptable scope, NetworkFrame frame) {
@@ -403,6 +409,7 @@ public final class JsComputer {
 			ScriptableObject.putProperty(object, "source", frame.source());
 			ScriptableObject.putProperty(object, "destination", frame.destination());
 			ScriptableObject.putProperty(object, "data", frame.data());
+			ScriptableObject.putProperty(object, "hops", frame.hops());
 			ScriptableObject.putProperty(object, "toString", new BaseFunction() {
 				@Override
 				public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {

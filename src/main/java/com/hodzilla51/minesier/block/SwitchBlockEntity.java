@@ -41,18 +41,25 @@ public class SwitchBlockEntity extends BlockEntity {
 		long now = serverLevel.getGameTime();
 		macTable.entrySet().removeIf(entry -> now - entry.getValue().lastSeenTick() > MAC_AGE_TICKS);
 		macTable.put(frame.source(), new MacEntry(ingress, now));
+
+		// Advance one hop; drop if the frame has been forwarded too many times (loop guard).
+		NetworkFrame forwarded = frame.nextHop();
+		if (forwarded == null) {
+			return;
+		}
+
 		MacEntry destination = macTable.get(frame.destination());
 		Direction egress = destination == null ? null : destination.port();
 		if (egress != null) {
 			if (egress != ingress) {
-				CableNetwork.send(serverLevel, worldPosition, egress, frame);
+				CableNetwork.send(serverLevel, worldPosition, egress, forwarded);
 			}
 			return;
 		}
 
 		for (Direction direction : Direction.values()) {
 			if (direction != ingress) {
-				CableNetwork.send(serverLevel, worldPosition, direction, frame);
+				CableNetwork.send(serverLevel, worldPosition, direction, forwarded);
 			}
 		}
 	}
