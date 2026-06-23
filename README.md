@@ -123,6 +123,21 @@ and floods unknown destinations to every other connected port. It has no spannin
 tree protocol: physical loops are bounded by the network event queue, but should be
 avoided unless you are deliberately experimenting with loop behaviour.
 
+### IPv4-style packets
+
+`ip` provides a lossless, IPv4-inspired layer-3 packet envelope. Packets carry
+IPv4 dotted-quad source and destination addresses, a TTL, an IP protocol number
+(for example TCP is `6` and UDP is `17`), and a string payload. The envelope is
+carried inside a normal `net` frame. It deliberately omits checksums, fragmentation,
+options, ARP, and DHCP for now.
+
+```js
+var packet = ip.create("10.0.1.10", "10.0.2.20", 17, "hello");
+net.send("gateway-mac-address", ip.encode(packet));
+```
+
+`ip.forward(packet)` decrements TTL and returns `null` when it reaches zero.
+
 ## Building from source
 
 Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).

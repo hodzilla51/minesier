@@ -13,6 +13,7 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
 
 import com.hodzilla51.minesier.net.NetworkFrame;
+import com.hodzilla51.minesier.net.IpPacket;
 
 /**
  * One sandboxed JavaScript VM, owned by a single computer (1 block = 1 VM).
@@ -118,6 +119,11 @@ public final class JsComputer {
 			if (scope == null) {
 				scope = cx.initSafeStandardObjects();
 				ScriptableObject.putProperty(scope, "print", new PrintFunction());
+				ScriptableObject ipObj = (ScriptableObject) cx.newObject(scope);
+				for (String op : new String[] { "create", "encode", "decode", "forward" }) {
+					ScriptableObject.putProperty(ipObj, op, new IpFunction(op));
+				}
+				ScriptableObject.putProperty(scope, "ip", ipObj);
 				if (turtle != null) {
 					ScriptableObject turtleObj = (ScriptableObject) cx.newObject(scope);
 					for (String op : new String[] {
@@ -151,6 +157,78 @@ public final class JsComputer {
 			Context.exit();
 		}
 		return out;
+	}
+
+	/** IPv4-inspired packet helpers for player-written layer-3 protocols. */
+	private final class IpFunction extends BaseFunction {
+		private final String op;
+
+		IpFunction(String op) {
+			this.op = op;
+		}
+
+		@Override
+		public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+			return switch (op) {
+				case "create" -> packetObject(cx, scope, new IpPacket(
+					requireString(args, 0), requireString(args, 1), optionalInteger(args, 4, 64),
+					requireInteger(args, 2), requireString(args, 3)));
+				case "encode" -> args.length >= 1 && args[0] instanceof Scriptable packet
+					? packetFromObject(packet).encode() : null;
+				case "decode" -> args.length >= 1 ? packetObject(cx, scope, IpPacket.decode(Context.toString(args[0]))) : null;
+				case "forward" -> args.length >= 1 && args[0] instanceof Scriptable packet
+					? packetObject(cx, scope, packetFromObject(packet).routed()) : null;
+				default -> null;
+			};
+		}
+
+		private String requireString(Object[] args, int index) {
+			if (args.length <= index) {
+				throw new IllegalArgumentException("missing argument " + (index + 1));
+			}
+			return Context.toString(args[index]);
+		}
+
+		private int requireInteger(Object[] args, int index) {
+			if (args.length <= index) {
+				throw new IllegalArgumentException("missing argument " + (index + 1));
+			}
+			return (int) Context.toNumber(args[index]);
+		}
+
+		private int optionalInteger(Object[] args, int index, int defaultValue) {
+			return args.length > index ? (int) Context.toNumber(args[index]) : defaultValue;
+		}
+
+		private IpPacket packetFromObject(Scriptable packet) {
+			return new IpPacket(
+				Context.toString(ScriptableObject.getProperty(packet, "source")),
+				Context.toString(ScriptableObject.getProperty(packet, "destination")),
+				(int) Context.toNumber(ScriptableObject.getProperty(packet, "ttl")),
+				(int) Context.toNumber(ScriptableObject.getProperty(packet, "protocol")),
+				Context.toString(ScriptableObject.getProperty(packet, "payload")));
+		}
+
+		private Object packetObject(Context cx, Scriptable scope, IpPacket packet) {
+			if (packet == null) {
+				return null;
+			}
+			ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+			ScriptableObject.putProperty(object, "version", 4);
+			ScriptableObject.putProperty(object, "source", packet.source());
+			ScriptableObject.putProperty(object, "destination", packet.destination());
+			ScriptableObject.putProperty(object, "ttl", packet.ttl());
+			ScriptableObject.putProperty(object, "protocol", packet.protocol());
+			ScriptableObject.putProperty(object, "payload", packet.payload());
+			ScriptableObject.putProperty(object, "toString", new BaseFunction() {
+				@Override
+				public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
+					return "IPv4 " + packet.source() + " -> " + packet.destination()
+						+ " ttl=" + packet.ttl() + " protocol=" + packet.protocol();
+				}
+			});
+			return object;
+		}
 	}
 
 	/** A method on the {@code net} global; delegates to its block entity's NIC. */

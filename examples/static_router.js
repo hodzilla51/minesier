@@ -1,23 +1,29 @@
-// A one-pass static router. The packet payload is JSON created by the sender:
-// { "network": "remote", "payload": "hello" }
-// Replace the next-hop address with the receiving NIC address on the remote segment.
+// A static IPv4-style router. Replace the next-hop address with the receiving
+// NIC address on the remote segment.
 
 var lan = net.nic("front");
 var wan = net.nic("back");
 var routes = {
-  remote: "02:12:34:56:78:9a"
+  "10.0.2": "02:12:34:56:78:9a"
 };
 
 lan.setPromiscuous(true);
 
 lan.onReceive(function (frame) {
-  var packet = JSON.parse(frame.data);
-  var nextHop = routes[packet.network];
+  var packet = ip.decode(frame.data);
+  if (packet === null) return;
+  var network = packet.destination.split(".").slice(0, 3).join(".");
+  var nextHop = routes[network];
   if (nextHop === undefined) {
-    print("no route for", packet.network);
+    print("no route for", packet.destination);
   } else {
-    wan.send(nextHop, frame.data);
-    print("routed", packet.network, "via", nextHop);
+    packet = ip.forward(packet);
+    if (packet === null) {
+      print("TTL expired");
+    } else {
+      wan.send(nextHop, ip.encode(packet));
+      print("routed", packet.destination, "via", nextHop);
+    }
   }
 });
 
