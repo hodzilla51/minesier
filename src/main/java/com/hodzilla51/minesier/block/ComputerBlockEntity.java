@@ -13,6 +13,8 @@ import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.NetworkApi;
 import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
+import com.hodzilla51.minesier.net.NetworkListener;
+import com.hodzilla51.minesier.net.NetworkManager;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -62,8 +64,19 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 	/** Called by the physical cable medium for the NIC attached to {@code face}. */
 	public void offerFrame(Direction face, NetworkFrame frame) {
 		NicState nic = nics.get(face);
-		if (nic == null || (!nic.promiscuous && !addressFor(face).equals(frame.destination()))
-				|| nic.inbox.size() >= MAX_INBOX_FRAMES) {
+		if (nic == null || (!nic.promiscuous && !addressFor(face).equals(frame.destination()))) {
+			return;
+		}
+		if (nic.listener != null) {
+			NetworkListener listener = nic.listener;
+			NetworkManager.schedule(queuedFrame -> {
+				if (nic.listener == listener) {
+					listener.onFrame(queuedFrame);
+				}
+			}, frame);
+			return;
+		}
+		if (nic.inbox.size() >= MAX_INBOX_FRAMES) {
 			return;
 		}
 		nic.inbox.addLast(frame);
@@ -103,6 +116,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 
 	/** Runs one program in this computer's VM, appending the echoed input + output to the transcript. */
 	public void runCommand(String command) {
+		computer.clearReceiveHandlers();
 		String[] inputLines = command.split("\n", -1);
 		transcript.add("> " + inputLines[0]);
 		for (int i = 1; i < inputLines.length; i++) {
@@ -240,10 +254,56 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 			nic.promiscuous = enabled;
 			return true;
 		}
+
+		@Override
+		public boolean setReceiveListener(String interfaceName, NetworkListener listener) {
+			Direction face = parseFace(interfaceName);
+			NicState nic = face == null ? null : nics.get(face);
+			if (nic == null) {
+				return false;
+			}
+			nic.listener = listener;
+			return true;
+		}
+
+		@Override
+		public boolean clearReceiveListener(String interfaceName) {
+			Direction face = parseFace(interfaceName);
+			NicState nic = face == null ? null : nics.get(face);
+			if (nic == null) {
+				return false;
+			}
+			nic.listener = null;
+			return true;
+		}
+
+		@Override
+		public void clearReceiveListeners() {
+			for (NicState nic : nics.values()) {
+				nic.listener = null;
+			}
+		}
+
+		@Override
+		public void reportOutput(List<String> lines) {
+			if (lines.isEmpty()) {
+				return;
+			}
+			transcript.addAll(lines);
+			trim();
+			setChanged();
+		}
 	}
 
 	private static final class NicState {
 		final Deque<NetworkFrame> inbox = new ArrayDeque<>();
 		boolean promiscuous;
+		NetworkListener listener;
+	}
+
+	@Override
+	public void setRemoved() {
+		computer.clearReceiveHandlers();
+		super.setRemoved();
 	}
 }

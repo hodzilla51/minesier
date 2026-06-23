@@ -6,6 +6,7 @@ import java.util.List;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.ClassShutter;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Function;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
@@ -48,6 +49,53 @@ public final class JsComputer {
 	/** Attaches the network interface owned by this VM's block entity. */
 	public void setNetwork(NetworkApi network) {
 		this.network = network;
+	}
+
+	/** Stops all event handlers owned by this VM. Called before a new terminal program runs. */
+	public void clearReceiveHandlers() {
+		if (network != null) {
+			network.clearReceiveListeners();
+		}
+	}
+
+	/** Invokes one registered receive callback within a small, tick-safe instruction budget. */
+	private synchronized void invokeReceiveHandler(Function handler, NetworkFrame frame) {
+		List<String> out = new ArrayList<>();
+		SafeContextFactory.resetCounter(100_000L);
+		Context cx = Context.enter();
+		try {
+			cx.setInterpretedMode(true);
+			try {
+				cx.setClassShutter(DENY_ALL);
+			} catch (SecurityException alreadySet) {
+				// A pooled context may already have the deny-all shutter.
+			}
+			this.sink = out;
+			handler.call(cx, scope, scope, new Object[] { receiveFrameObject(cx, scope, frame) });
+		} catch (RhinoException | IllegalStateException e) {
+			out.add("error: " + e.getMessage());
+		} finally {
+			this.sink = null;
+			Context.exit();
+		}
+		NetworkApi net = network;
+		if (net != null) {
+			net.reportOutput(out);
+		}
+	}
+
+	private Object receiveFrameObject(Context cx, Scriptable scope, NetworkFrame frame) {
+		ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+		ScriptableObject.putProperty(object, "source", frame.source());
+		ScriptableObject.putProperty(object, "destination", frame.destination());
+		ScriptableObject.putProperty(object, "data", frame.data());
+		ScriptableObject.putProperty(object, "toString", new BaseFunction() {
+			@Override
+			public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
+				return frame.source() + " -> " + frame.destination() + ": " + frame.data();
+			}
+		});
+		return object;
 	}
 
 	/**
@@ -134,7 +182,9 @@ public final class JsComputer {
 				return null;
 			}
 			ScriptableObject object = (ScriptableObject) cx.newObject(scope);
-			for (String op : new String[] { "address", "send", "receive", "forward", "setPromiscuous" }) {
+			for (String op : new String[] {
+				"address", "send", "receive", "forward", "setPromiscuous", "onReceive", "offReceive"
+			}) {
 				ScriptableObject.putProperty(object, op, new NicFunction(interfaceName, op));
 			}
 			return object;
@@ -183,6 +233,9 @@ public final class JsComputer {
 					? net.forward(interfaceName, fromScriptFrame(frame)) : Boolean.FALSE;
 				case "setPromiscuous" -> args.length >= 1
 					? net.setPromiscuous(interfaceName, Context.toBoolean(args[0])) : Boolean.FALSE;
+				case "onReceive" -> args.length >= 1 && args[0] instanceof Function callback
+					? net.setReceiveListener(interfaceName, frame -> invokeReceiveHandler(callback, frame)) : Boolean.FALSE;
+				case "offReceive" -> net.clearReceiveListener(interfaceName);
 				default -> null;
 			};
 		}

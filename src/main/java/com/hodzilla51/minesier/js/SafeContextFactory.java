@@ -16,6 +16,7 @@ public final class SafeContextFactory extends ContextFactory {
 	private static final long MAX_INSTRUCTIONS = 200_000_000L;
 
 	private static final ThreadLocal<long[]> COUNT = ThreadLocal.withInitial(() -> new long[1]);
+	private static final ThreadLocal<Long> LIMIT = ThreadLocal.withInitial(() -> MAX_INSTRUCTIONS);
 
 	private SafeContextFactory() {
 	}
@@ -30,6 +31,13 @@ public final class SafeContextFactory extends ContextFactory {
 	/** Resets the calling thread's instruction budget; call at the start of each run. */
 	public static void resetCounter() {
 		COUNT.get()[0] = 0L;
+		LIMIT.set(MAX_INSTRUCTIONS);
+	}
+
+	/** Resets the calling thread with a tighter cap for an event callback. */
+	public static void resetCounter(long instructionLimit) {
+		COUNT.get()[0] = 0L;
+		LIMIT.set(instructionLimit);
 	}
 
 	@Override
@@ -43,7 +51,7 @@ public final class SafeContextFactory extends ContextFactory {
 	protected void observeInstructionCount(Context cx, int instructionCount) {
 		long[] c = COUNT.get();
 		c[0] += instructionCount;
-		if (c[0] > MAX_INSTRUCTIONS) {
+		if (c[0] > LIMIT.get()) {
 			throw new IllegalStateException("script exceeded instruction limit (runaway?)");
 		}
 	}

@@ -105,8 +105,15 @@ if (frame) back.forward(frame); // preserve source and destination: a simple bri
 
 `send(destination, data)` originates a new frame with that NIC's address as its
 source. `forward(frame)` sends an existing frame unchanged, which is the basis
-for player-written switches. There is no background listener yet: programs read
-and forward the frames queued at the time they run.
+for player-written switches. `onReceive(handler)` registers a tick-budgeted
+event handler: it runs only when a matching frame arrives, not in a busy loop.
+Each server tick dispatches at most four receive events globally, and a handler
+has a 100,000-instruction safety budget.
+
+The repository includes [a two-port bridge](examples/two_port_bridge.js) and
+[a static router](examples/static_router.js). They are deliberately ordinary JS
+programs rather than special blocks: the same multi-NIC computer can be a host,
+a bridge, a switch, or a router depending on the code loaded into it.
 
 ## Building from source
 

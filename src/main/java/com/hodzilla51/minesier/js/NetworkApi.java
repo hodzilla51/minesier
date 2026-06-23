@@ -1,6 +1,9 @@
 package com.hodzilla51.minesier.js;
 
 import com.hodzilla51.minesier.net.NetworkFrame;
+import com.hodzilla51.minesier.net.NetworkListener;
+
+import java.util.List;
 
 /** Narrow, Minecraft-free interface exposed to the {@code net} JavaScript global. */
 public interface NetworkApi {
@@ -22,4 +25,12 @@ public interface NetworkApi {
 	boolean forward(String interfaceName, NetworkFrame frame);
 
 	boolean setPromiscuous(String interfaceName, boolean enabled);
+
+	boolean setReceiveListener(String interfaceName, NetworkListener listener);
+
+	boolean clearReceiveListener(String interfaceName);
+
+	void clearReceiveListeners();
+
+	void reportOutput(List<String> lines);
 }
