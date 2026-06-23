@@ -96,7 +96,7 @@ public class TurtleBlock extends BaseEntityBlock {
 			BlockHitResult hit) {
 		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
 				&& level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
-			ServerPlayNetworking.send(serverPlayer, new TerminalScreenS2C(pos, turtle.getTranscript(), true));
+			ServerPlayNetworking.send(serverPlayer, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
 		}
 		return InteractionResult.SUCCESS;
 	}

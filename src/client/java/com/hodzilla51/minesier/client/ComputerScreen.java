@@ -1,12 +1,17 @@
 package com.hodzilla51.minesier.client;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.hodzilla51.minesier.net.ProgramActionC2S;
+import com.hodzilla51.minesier.net.RequestInventoryC2S;
 import com.hodzilla51.minesier.net.RunCommandC2S;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
@@ -17,44 +22,54 @@ import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The computer/turtle terminal: a scrollback (drawn as monospace lines) on top, a
- * multi-line {@link MultiLineEditBox} program editor at the bottom, and a Run button.
- * Ctrl/Cmd+Enter also runs. The whole program (newlines intact) is shipped to the
- * server, which runs it in the block's VM and echoes the transcript back.
+ * The computer/turtle screen. A tab bar switches between the JS terminal (scrollback
+ * + multi-line editor + program buttons) and, for turtles, a read-only inventory
+ * viewer. Keeping them on separate tabs avoids cramming the already-full terminal.
  */
 public class ComputerScreen extends Screen {
 	private static final int MARGIN = 12;
+	private static final int CONTENT_TOP = 22; // leaves room for the tab row
 	private static final int EDITOR_HEIGHT = 72;
 	private static final int BUTTON_H = 20;
+	private static final int TAB_TERMINAL = 0;
+	private static final int TAB_INVENTORY = 1;
 
-	// Terminal "CRT" skin colors (ARGB).
+	// Panel skin colors (ARGB).
 	private static final int PANEL_COLOR = 0xFF0C120C;
 	private static final int BORDER_COLOR = 0xFF3A6B3A;
 	private static final int TITLEBAR_COLOR = 0xFF18301A;
 	private static final int TITLE_COLOR = 0xFF7CFC7C;
 	private static final int TEXT_COLOR = 0xFFD0E8D0;
+	private static final int SELECTED_COLOR = 0xFFF5E96A;
 
-	/**
-	 * The currently open terminal, if any. {@link Minecraft} no longer exposes the
-	 * active screen, so we track it here to route server-pushed transcript updates.
-	 */
+	/** The currently open screen, if any (Minecraft no longer exposes the active screen). */
 	private static ComputerScreen open;
 
 	private BlockPos pos;
 	private String transcript;
+	private final boolean turtle;
+
+	private int tab = TAB_TERMINAL;
 	private MultiLineEditBox editor;
 	private EditBox nameField;
+	private final List<AbstractWidget> terminalWidgets = new ArrayList<>();
 
-	public ComputerScreen(BlockPos pos, String transcript) {
+	private int invSelected = -1;
+	private String[] invSlots = new String[0];
+
+	public ComputerScreen(BlockPos pos, String transcript, boolean turtle) {
 		super(Component.literal("Computer"));
 		this.pos = pos;
 		this.transcript = transcript;
+		this.turtle = turtle;
 	}
 
-	/**
-	 * Applies a server transcript update to the open terminal, re-keying its target
-	 * position so the terminal follows a turtle that hopped to a new block.
-	 */
+	/** Backwards-compatible: a non-turtle terminal. */
+	public ComputerScreen(BlockPos pos, String transcript) {
+		this(pos, transcript, false);
+	}
+
+	/** Applies a server transcript update to the open screen, re-keying its target position. */
 	public static void updateIfOpen(BlockPos pos, String transcript) {
 		if (open != null) {
 			open.pos = pos;
@@ -69,9 +84,27 @@ public class ComputerScreen extends Screen {
 		}
 	}
 
+	/** Shows a server-sent inventory snapshot in the open screen's inventory tab. */
+	public static void showInventory(int selected, String slots) {
+		if (open != null) {
+			open.invSelected = selected;
+			open.invSlots = slots.split("\n", -1);
+		}
+	}
+
 	@Override
 	protected void init() {
 		Font font = Minecraft.getInstance().font;
+		terminalWidgets.clear();
+
+		// Tab row.
+		addRenderableWidget(Button.builder(Component.literal("Terminal"), b -> setTab(TAB_TERMINAL))
+			.bounds(MARGIN, 2, 64, 16).build());
+		if (turtle) {
+			addRenderableWidget(Button.builder(Component.literal("Inventory"), b -> setTab(TAB_INVENTORY))
+				.bounds(MARGIN + 68, 2, 64, 16).build());
+		}
+
 		int editorWidth = this.width - MARGIN * 2;
 		int buttonY = this.height - MARGIN - BUTTON_H;
 		int editorY = buttonY - 4 - EDITOR_HEIGHT;
@@ -84,6 +117,7 @@ public class ComputerScreen extends Screen {
 			.build(font, editorWidth, EDITOR_HEIGHT, Component.literal("JS program — Ctrl/Cmd+Enter to run"));
 		this.editor.setCharacterLimit(8192);
 		addRenderableWidget(this.editor);
+		terminalWidgets.add(this.editor);
 
 		// Bottom row, right-aligned: [name field] Save Load List Eject Run
 		int gap = 4;
@@ -99,20 +133,40 @@ public class ComputerScreen extends Screen {
 		this.nameField.setHint(Component.literal("program name"));
 		this.nameField.setMaxLength(64);
 		addRenderableWidget(this.nameField);
+		terminalWidgets.add(this.nameField);
 
-		addRenderableWidget(Button.builder(Component.literal("Save"), b -> program(ProgramActionC2S.SAVE))
-			.bounds(saveX, buttonY, bw, BUTTON_H).build());
-		addRenderableWidget(Button.builder(Component.literal("Load"), b -> program(ProgramActionC2S.LOAD))
-			.bounds(loadX, buttonY, bw, BUTTON_H).build());
-		addRenderableWidget(Button.builder(Component.literal("List"), b -> program(ProgramActionC2S.LIST))
-			.bounds(listX, buttonY, bw, BUTTON_H).build());
-		addRenderableWidget(Button.builder(Component.literal("Eject"), b -> program(ProgramActionC2S.EJECT))
-			.bounds(ejectX, buttonY, bw, BUTTON_H).build());
-		addRenderableWidget(Button.builder(Component.literal("Run"), b -> runCurrent())
-			.bounds(runX, buttonY, bw, BUTTON_H).build());
+		terminalWidgets.add(addRenderableWidget(Button.builder(Component.literal("Save"), b -> program(ProgramActionC2S.SAVE))
+			.bounds(saveX, buttonY, bw, BUTTON_H).build()));
+		terminalWidgets.add(addRenderableWidget(Button.builder(Component.literal("Load"), b -> program(ProgramActionC2S.LOAD))
+			.bounds(loadX, buttonY, bw, BUTTON_H).build()));
+		terminalWidgets.add(addRenderableWidget(Button.builder(Component.literal("List"), b -> program(ProgramActionC2S.LIST))
+			.bounds(listX, buttonY, bw, BUTTON_H).build()));
+		terminalWidgets.add(addRenderableWidget(Button.builder(Component.literal("Eject"), b -> program(ProgramActionC2S.EJECT))
+			.bounds(ejectX, buttonY, bw, BUTTON_H).build()));
+		terminalWidgets.add(addRenderableWidget(Button.builder(Component.literal("Run"), b -> runCurrent())
+			.bounds(runX, buttonY, bw, BUTTON_H).build()));
 
-		setInitialFocus(this.editor);
+		applyTab();
 		open = this;
+	}
+
+	private void setTab(int which) {
+		this.tab = which;
+		applyTab();
+		if (which == TAB_INVENTORY) {
+			ClientPlayNetworking.send(new RequestInventoryC2S(this.pos));
+		}
+	}
+
+	private void applyTab() {
+		boolean terminal = tab == TAB_TERMINAL;
+		for (AbstractWidget widget : terminalWidgets) {
+			widget.visible = terminal;
+			widget.active = terminal;
+		}
+		if (terminal) {
+			setInitialFocus(this.editor);
+		}
 	}
 
 	private void program(int action) {
@@ -120,7 +174,7 @@ public class ComputerScreen extends Screen {
 		boolean needsName = action == ProgramActionC2S.SAVE || action == ProgramActionC2S.LOAD
 			|| action == ProgramActionC2S.DELETE;
 		if (needsName && name.isEmpty()) {
-			return; // save/load/delete need a name
+			return;
 		}
 		String source = action == ProgramActionC2S.SAVE ? this.editor.getValue() : "";
 		ClientPlayNetworking.send(new ProgramActionC2S(this.pos, action, name, source));
@@ -145,32 +199,36 @@ public class ComputerScreen extends Screen {
 	public boolean keyPressed(KeyEvent event) {
 		boolean enter = event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER;
 		boolean runModifier = (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-		if (enter && runModifier) {
+		if (tab == TAB_TERMINAL && enter && runModifier) {
 			runCurrent();
 			return true;
 		}
-		// Plain Enter falls through to the editor (inserts a newline).
 		return super.keyPressed(event);
 	}
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
-		Font font = Minecraft.getInstance().font;
+		if (tab == TAB_INVENTORY) {
+			renderInventory(graphics);
+		} else {
+			renderTerminal(graphics);
+		}
+	}
 
+	private void renderTerminal(GuiGraphicsExtractor graphics) {
+		Font font = Minecraft.getInstance().font;
 		int left = MARGIN;
 		int right = this.width - MARGIN;
-		int top = MARGIN;
+		int top = CONTENT_TOP;
 		int bottom = (this.editor != null ? this.editor.getY() : this.height) - 6;
 		int titleHeight = font.lineHeight + 6;
 
-		// Framed terminal panel: border, body, then a title bar.
 		graphics.fill(left - 1, top - 1, right + 1, bottom + 1, BORDER_COLOR);
 		graphics.fill(left, top, right, bottom, PANEL_COLOR);
 		graphics.fill(left, top, right, top + titleHeight, TITLEBAR_COLOR);
 		graphics.text(font, "MineSIer terminal", left + 6, top + 4, TITLE_COLOR);
 
-		// Scrollback: draw the tail that fits inside the panel, below the title bar.
 		int lineHeight = font.lineHeight + 1;
 		int textTop = top + titleHeight + 3;
 		String[] lines = this.transcript.split("\n", -1);
@@ -180,6 +238,33 @@ public class ComputerScreen extends Screen {
 		for (int i = start; i < lines.length; i++) {
 			graphics.text(font, lines[i], left + 6, y, TEXT_COLOR);
 			y += lineHeight;
+		}
+	}
+
+	private void renderInventory(GuiGraphicsExtractor graphics) {
+		Font font = Minecraft.getInstance().font;
+		int left = MARGIN;
+		int right = this.width - MARGIN;
+		int top = CONTENT_TOP;
+		int bottom = this.height - MARGIN;
+		int titleHeight = font.lineHeight + 6;
+
+		graphics.fill(left - 1, top - 1, right + 1, bottom + 1, BORDER_COLOR);
+		graphics.fill(left, top, right, bottom, PANEL_COLOR);
+		graphics.fill(left, top, right, top + titleHeight, TITLEBAR_COLOR);
+		graphics.text(font, "Inventory  (selected slot " + (invSelected + 1) + ")", left + 6, top + 4, TITLE_COLOR);
+
+		int lineHeight = font.lineHeight + 2;
+		int y = top + titleHeight + 4;
+		for (int i = 0; i < invSlots.length; i++) {
+			boolean selected = i == invSelected;
+			String content = invSlots[i].isBlank() ? "(empty)" : invSlots[i];
+			String label = (selected ? "> " : "  ") + "slot " + (i + 1) + ": " + content;
+			graphics.text(font, label, left + 6, y, selected ? SELECTED_COLOR : TEXT_COLOR);
+			y += lineHeight;
+		}
+		if (invSlots.length == 0) {
+			graphics.text(font, "open this tab to load the turtle's inventory", left + 6, y, TEXT_COLOR);
 		}
 	}
 

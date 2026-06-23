@@ -10,6 +10,8 @@ import com.hodzilla51.minesier.turtle.TurtleManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -26,10 +28,12 @@ public final class MineSIerNet {
 	public static void registerPayloads() {
 		PayloadTypeRegistry.serverboundPlay().register(RunCommandC2S.TYPE, RunCommandC2S.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(ProgramActionC2S.TYPE, ProgramActionC2S.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(RequestInventoryC2S.TYPE, RequestInventoryC2S.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(TerminalScreenS2C.TYPE, TerminalScreenS2C.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(TurtleMoveS2C.TYPE, TurtleMoveS2C.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(TurtleTurnS2C.TYPE, TurtleTurnS2C.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(LoadProgramS2C.TYPE, LoadProgramS2C.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(InventoryS2C.TYPE, InventoryS2C.CODEC);
 	}
 
 	/** Server-authoritative command execution. */
@@ -43,6 +47,33 @@ public final class MineSIerNet {
 			ServerPlayer player = context.player();
 			context.server().execute(() -> handleProgram(player, payload));
 		});
+		ServerPlayNetworking.registerGlobalReceiver(RequestInventoryC2S.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			context.server().execute(() -> handleInventoryRequest(player, payload));
+		});
+	}
+
+	private static void handleInventoryRequest(ServerPlayer player, RequestInventoryC2S p) {
+		Level level = player.level();
+		BlockPos pos = p.pos();
+		if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR) {
+			return;
+		}
+		if (!(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)) {
+			return;
+		}
+		NonNullList<ItemStack> inventory = turtle.getInventory();
+		StringBuilder slots = new StringBuilder();
+		for (int i = 0; i < inventory.size(); i++) {
+			if (i > 0) {
+				slots.append('\n');
+			}
+			ItemStack stack = inventory.get(i);
+			if (!stack.isEmpty()) {
+				slots.append(BuiltInRegistries.ITEM.getKey(stack.getItem())).append(' ').append(stack.getCount());
+			}
+		}
+		ServerPlayNetworking.send(player, new InventoryS2C(turtle.getSelectedSlot(), slots.toString()));
 	}
 
 	private static void handleProgram(ServerPlayer player, ProgramActionC2S p) {
