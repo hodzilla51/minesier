@@ -4,6 +4,7 @@ import java.util.function.Function;
 
 import com.hodzilla51.minesier.block.ComputerBlock;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
+import com.hodzilla51.minesier.block.CableBlock;
 import com.hodzilla51.minesier.block.TurtleBlock;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.item.DiskContents;
@@ -31,9 +32,11 @@ public final class ModContent {
 	}
 
 	public static final Identifier COMPUTER_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "computer");
+	public static final Identifier CABLE_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "cable");
 	public static final Identifier TURTLE_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "turtle");
 
 	public static final Block COMPUTER_BLOCK = registerBlock(COMPUTER_ID, ComputerBlock::new);
+	public static final Block CABLE_BLOCK = registerBlock(CABLE_ID, CableBlock::new);
 	public static final Block TURTLE_BLOCK = registerBlock(TURTLE_ID, TurtleBlock::new);
 
 	public static final BlockEntityType<ComputerBlockEntity> COMPUTER_BLOCK_ENTITY =
@@ -63,6 +66,7 @@ public final class ModContent {
 			.icon(() -> new ItemStack(COMPUTER_BLOCK))
 			.displayItems((params, output) -> {
 				output.accept(COMPUTER_BLOCK);
+				output.accept(CABLE_BLOCK);
 				output.accept(TURTLE_BLOCK);
 				output.accept(DISK);
 			})

@@ -11,6 +11,8 @@ import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
 
+import com.hodzilla51.minesier.net.NetworkFrame;
+
 /**
  * One sandboxed JavaScript VM, owned by a single computer (1 block = 1 VM).
  *
@@ -35,10 +37,17 @@ public final class JsComputer {
 
 	/** Turtle actions for the {@code turtle} global; null on a plain (non-turtle) computer. */
 	private TurtleApi turtle;
+	/** Network actions for the {@code net} global; null until a network-capable owner attaches one. */
+	private NetworkApi network;
 
 	/** Attaches the turtle this VM controls; call before {@link #run} on a turtle. */
 	public void setTurtle(TurtleApi turtle) {
 		this.turtle = turtle;
+	}
+
+	/** Attaches the network interface owned by this VM's block entity. */
+	public void setNetwork(NetworkApi network) {
+		this.network = network;
 	}
 
 	/**
@@ -72,6 +81,13 @@ public final class JsComputer {
 					}
 					ScriptableObject.putProperty(scope, "turtle", turtleObj);
 				}
+				if (network != null) {
+					ScriptableObject netObj = (ScriptableObject) cx.newObject(scope);
+					for (String op : new String[] { "address", "send", "receive" }) {
+						ScriptableObject.putProperty(netObj, op, new NetworkFunction(op));
+					}
+					ScriptableObject.putProperty(scope, "net", netObj);
+				}
 			}
 			this.sink = out;
 			Object result = cx.evaluateString(scope, source, "computer", 1, null);
@@ -87,6 +103,47 @@ public final class JsComputer {
 			Context.exit();
 		}
 		return out;
+	}
+
+	/** A method on the {@code net} global; delegates to its block entity's NIC. */
+	private final class NetworkFunction extends BaseFunction {
+		private final String op;
+
+		NetworkFunction(String op) {
+			this.op = op;
+		}
+
+		@Override
+		public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+			NetworkApi net = network;
+			if (net == null) {
+				return null;
+			}
+			return switch (op) {
+				case "address" -> net.address();
+				case "send" -> args.length >= 2
+					? net.send(Context.toString(args[0]), Context.toString(args[1])) : Boolean.FALSE;
+				case "receive" -> toScriptFrame(cx, scope, net.receive());
+				default -> null;
+			};
+		}
+
+		private Object toScriptFrame(Context cx, Scriptable scope, NetworkFrame frame) {
+			if (frame == null) {
+				return null;
+			}
+			ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+			ScriptableObject.putProperty(object, "source", frame.source());
+			ScriptableObject.putProperty(object, "destination", frame.destination());
+			ScriptableObject.putProperty(object, "data", frame.data());
+			ScriptableObject.putProperty(object, "toString", new BaseFunction() {
+				@Override
+				public Object call(Context context, Scriptable scriptScope, Scriptable thisObj, Object[] args) {
+					return frame.source() + " -> " + frame.destination() + ": " + frame.data();
+				}
+			});
+			return object;
+		}
 	}
 
 	/** The {@code print(...)} global: appends each argument (space-joined) to the output. */

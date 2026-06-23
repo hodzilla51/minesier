@@ -69,6 +69,24 @@ selected slot) `place(id)` (e.g. `"minecraft:stone"`) `detect()` `inspect()`
 
 Global: `print(...)`. There is also a `/js <expression>` command for one-off evaluation.
 
+### Wired networking (in development)
+
+Each computer has one NIC on the face opposite its screen. Connect Cable to that
+face to send frames to computers in the same connected cable segment. Addresses
+remain stable while the world is saved.
+
+```js
+print(net.address());                 // this computer's MAC-like address
+net.send("02:12:34:56:78:9a", "hello");
+
+var frame = net.receive();            // null when no frame is queued
+if (frame) print(frame.source, frame.data);
+```
+
+Payloads are currently strings up to 4 KiB and each NIC queues up to 64 frames.
+Switching, multiple NICs, promiscuous receive, and routing will be added in the
+next slice in a form programs can implement themselves.
+
 ## Building from source
 
 Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
@@ -93,7 +111,7 @@ Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
 ## Roadmap
 
 - ✅ JS engine, computer + terminal/editor, programmable turtle, disks
-- ⏳ Networking between computers (modems / rednet)
+- ⏳ Wired computer networking (player-built switches, routers, and VPNs)
 - ⏳ Peripherals (monitors, redstone I/O)
 - 🌟 In-game code editor with type completion
 - 🔭 NeoForge support

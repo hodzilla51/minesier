@@ -68,6 +68,22 @@ print("done, fuel = " + turtle.getFuelLevel());
 
 グローバル: `print(...)`。単発評価用の `/js <式>` コマンドもあります。
 
+### 有線ネットワーク（開発中）
+
+コンピュータには、画面と反対側の面に1個のNICがあります。Cableをその面へつなげると、同じ
+ケーブル連結成分にあるコンピュータへフレームを送れます。アドレスはワールド保存中は変わりません。
+
+```js
+print(net.address());                 // this computer's MAC-like address
+net.send("02:12:34:56:78:9a", "hello");
+
+var frame = net.receive();            // null when no frame is queued
+if (frame) print(frame.source, frame.data);
+```
+
+現在は文字列ペイロード、4 KiBまで、NICごとに64フレームまでです。スイッチング、複数NIC、
+promiscuous受信、ルーティングは次のスライスでプレイヤー実装できる形で追加します。
+
 ## ソースからのビルド
 
 必要環境: **JDK 25**、Fabric（MC 26.2 用の Loader + API）。
@@ -91,7 +107,7 @@ print("done, fuel = " + turtle.getFuelLevel());
 ## ロードマップ
 
 - ✅ JSエンジン、コンピュータ＋端末/エディタ、プログラム可能タートル、ディスク
-- ⏳ コンピュータ間ネットワーク（modem / rednet）
+- ⏳ 有線コンピュータネットワーク（プレイヤー実装のスイッチ/ルータ/VPN）
 - ⏳ 周辺機器（モニター、レッドストーンI/O）
 - 🌟 型補完付きのゲーム内コードエディタ
 - 🔭 NeoForge対応
