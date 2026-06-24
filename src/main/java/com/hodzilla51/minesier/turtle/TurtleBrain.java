@@ -21,10 +21,10 @@ import java.util.Map;
  */
 public final class TurtleBrain {
   /** Ticks a movement/dig/place action takes (also the slide-animation duration). */
-  public static final int PACE_TICKS = 6;
+  public static final int PACE_TICKS = 14;
 
   /** Ticks a turn takes — shorter than a move, but visible (not instant). */
-  public static final int TURN_TICKS = 4;
+  public static final int TURN_TICKS = 9;
 
   private static final int MAX_WAIT_TICKS = 20 * 60;
 
