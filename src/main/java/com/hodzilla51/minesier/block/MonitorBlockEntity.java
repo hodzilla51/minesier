@@ -23,8 +23,12 @@ import net.minecraft.world.level.storage.ValueOutput;
  * entity update packet) so {@code MonitorBlockEntityRenderer} can draw it on the screen face.
  */
 public class MonitorBlockEntity extends BlockEntity {
-  /** Logical grid the {@code monitor} API reports and the renderer lays out. */
-  public static final int ROWS = 12;
+  /**
+   * Logical grid the {@code monitor} API reports and the renderer lays out. ROWS is chosen so the
+   * grid is roughly square (ROWS*lineHeight ≈ COLUMNS*columnWidth), filling the block face evenly
+   * top-to-bottom and left-to-right rather than leaving wide vertical margins.
+   */
+  public static final int ROWS = 17;
 
   public static final int COLUMNS = 26;
 

@@ -40,6 +40,10 @@ public class MonitorBlockEntityRenderer
   private static final float SCALE = FACE_FILL / GRID_WIDTH;
   private static final int TEXT_COLOR = 0xFFFFFFFF; // opaque white (ARGB)
 
+  // The screen is self-lit: a solid block occludes its own position to light 0, which would
+  // render the text black. Draw at full brightness so the monitor glows like a real display.
+  private static final int FULL_BRIGHT = 0xF000F0;
+
   private final Font font;
 
   public MonitorBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
@@ -98,7 +102,7 @@ public class MonitorBlockEntityRenderer
           text,
           false,
           Font.DisplayMode.POLYGON_OFFSET,
-          state.lightCoords,
+          FULL_BRIGHT,
           TEXT_COLOR,
           0,
           0);

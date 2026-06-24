@@ -1,7 +1,7 @@
 {
   "parent": "minecraft:block/orientable",
   "textures": {
-    "front": "minesier:block/computer_front",
+    "front": "minesier:block/monitor_front",
     "side": "minesier:block/computer_side",
     "top": "minesier:block/computer_top"
   }
