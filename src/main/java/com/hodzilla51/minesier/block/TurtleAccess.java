@@ -179,6 +179,11 @@ public class TurtleAccess implements TurtleApi {
   }
 
   @Override
+  public void waitTicks(int ticks) {
+    // TurtleBrain owns the tick-paced wait. This method intentionally has no world effect.
+  }
+
+  @Override
   public void select(int slot) {
     this.selectedSlot = Math.max(0, Math.min(inventory.size() - 1, slot - 1));
   }

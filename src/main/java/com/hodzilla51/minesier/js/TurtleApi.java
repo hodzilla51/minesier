@@ -31,6 +31,9 @@ public interface TurtleApi {
    */
   boolean placeSelected();
 
+  /** Pauses this turtle program for {@code ticks} server ticks without blocking the server. */
+  void waitTicks(int ticks);
+
   /** Selects an inventory slot (1..16) for {@code placeSelected}. */
   void select(int slot);
 

@@ -164,6 +164,7 @@ public final class JsComputer {
                 "turnRight",
                 "dig",
                 "place",
+                "wait",
                 "detect",
                 "inspect",
                 "getFuelLevel",
@@ -661,6 +662,10 @@ public final class JsComputer {
         case "turnRight" -> t.turnRight();
         case "dig" -> t.dig();
         case "place" -> args.length > 0 ? t.place(Context.toString(args[0])) : t.placeSelected();
+        case "wait" -> {
+          t.waitTicks(args.length > 0 ? (int) Context.toNumber(args[0]) : 1);
+          yield Undefined.instance;
+        }
         case "detect" -> t.detect();
         case "inspect" -> t.inspect();
         case "getFuelLevel" -> t.getFuelLevel();

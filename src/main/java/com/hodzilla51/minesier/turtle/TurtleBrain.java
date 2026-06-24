@@ -25,6 +25,8 @@ public final class TurtleBrain {
   /** Ticks a turn takes — shorter than a move, but visible (not instant). */
   public static final int TURN_TICKS = 4;
 
+  private static final int MAX_WAIT_TICKS = 20 * 60;
+
   private static final Map<String, Integer> PACE =
       Map.of(
           "forward",
@@ -119,6 +121,9 @@ public final class TurtleBrain {
       if (!executing) {
         executing = true;
         ticksLeft = PACE.getOrDefault(op, 0);
+        if ("wait".equals(op)) {
+          ticksLeft = Math.clamp((int) args[0], 0, MAX_WAIT_TICKS);
+        }
         // Perform the world effect at the START so the move/animation plays over the pacing.
         result = perform(op, args);
       }
@@ -143,6 +148,10 @@ public final class TurtleBrain {
       case "dig" -> world.dig();
       case "place" -> world.place((String) args[0]);
       case "placeSelected" -> world.placeSelected();
+      case "wait" -> {
+        world.waitTicks((int) args[0]);
+        yield null;
+      }
       case "select" -> {
         world.select((int) args[0]);
         yield null;
@@ -196,6 +205,11 @@ public final class TurtleBrain {
         @Override
         public boolean placeSelected() {
           return (Boolean) call("placeSelected");
+        }
+
+        @Override
+        public void waitTicks(int ticks) {
+          call("wait", Math.max(0, ticks));
         }
 
         @Override
