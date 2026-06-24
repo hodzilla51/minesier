@@ -1,6 +1,5 @@
 package com.hodzilla51.minesier.block;
 
-import com.hodzilla51.minesier.ComputerManager;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.MonitorApi;
@@ -40,6 +39,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   private static final String KEY_DISK = "Disk";
   private static final String KEY_ADDRESS = "NetworkAddress";
   private static final String KEY_REDSTONE_OUT = "RedstoneOut";
+  private static final String KEY_RESIDENT = "ResidentSource";
   private static final int MAX_LINES = 200;
   private static final int MAX_INBOX_FRAMES = 64;
   private static final int MAX_FRAME_BYTES = 4 * 1024;
@@ -58,6 +58,16 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 
   private ItemStack disk = ItemStack.EMPTY;
   private String networkAddress = formatAddress(UUID.randomUUID());
+
+  /**
+   * The program that established the current resident daemon, persisted so the daemon survives a
+   * world reload. Empty when nothing is running. {@code pendingRestart} marks that it must be
+   * re-run on the next server tick after loading (JS closures can't be serialized, so we re-run the
+   * source).
+   */
+  private String residentSource = "";
+
+  private boolean pendingRestart;
 
   public ComputerBlockEntity(BlockPos pos, BlockState state) {
     super(ModContent.COMPUTER_BLOCK_ENTITY, pos, state);
@@ -161,29 +171,63 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
       transcript.add("  " + inputLines[i]); // continuation lines, indented
     }
     transcript.addAll(computer.run(command));
+    markResident(command);
     trim();
     setChanged();
-    // If the program registered timers, keep this computer ticking after the terminal closes.
-    ComputerManager.setActive(this, computer.hasTimers());
   }
 
   /**
-   * Server tick (driven by {@link ComputerManager}): fires any due timers and folds their output
-   * into the transcript. Returns whether this computer still has live timers.
+   * Runs the disk's {@code startup} program when a disk is inserted, so a computer can boot a
+   * daemon just by slotting a prepared disk. No-op if there's no such program.
    */
-  public boolean tickDaemon() {
-    // Only the live, canonical block entity at this position should run timers. If the chunk
-    // unloaded or this instance was replaced, stop ticking it (and let the manager drop it).
-    if (level == null || level.getBlockEntity(worldPosition) != this) {
-      return false;
+  public void bootStartup() {
+    String source = loadProgram("startup");
+    if (source != null && !source.isBlank()) {
+      runResident(source, "[startup]");
     }
-    List<String> out = computer.tickTimers();
-    if (!out.isEmpty()) {
-      transcript.addAll(out);
-      trim();
-      setChanged();
+  }
+
+  /** Re-runs {@code source} to rebuild a resident daemon (on load, or as a disk startup). */
+  private void runResident(String source, String note) {
+    computer.clearReceiveHandlers();
+    transcript.add(note);
+    transcript.addAll(computer.run(source));
+    markResident(source);
+    trim();
+    setChanged();
+  }
+
+  /**
+   * Records (or clears) the program that owns the live daemon, with a one-line hint when running.
+   */
+  private void markResident(String source) {
+    if (computer.hasTimers()) {
+      residentSource = source;
+      transcript.add("[running in background — clearTimers() to stop]");
+    } else {
+      residentSource = "";
     }
-    return computer.hasTimers();
+  }
+
+  /**
+   * Server tick (one per loaded block entity). Restarts a persisted daemon after a reload, then
+   * fires any due timers and folds their output into the transcript.
+   */
+  public void serverTick() {
+    if (pendingRestart) {
+      pendingRestart = false;
+      if (!residentSource.isEmpty()) {
+        runResident(residentSource, "[resident program restarted]");
+      }
+    }
+    if (computer.hasTimers()) {
+      List<String> out = computer.tickTimers();
+      if (!out.isEmpty()) {
+        transcript.addAll(out);
+        trim();
+        setChanged();
+      }
+    }
   }
 
   /** The full scrollback joined with newlines (for sending to the client). */
@@ -230,6 +274,9 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
                 redstoneOutputs[i] = Math.max(0, Math.min(15, outputs[i]));
               }
             });
+    this.residentSource = in.getStringOr(KEY_RESIDENT, "");
+    // A daemon was running when saved; re-run its source on the first tick after loading.
+    this.pendingRestart = !residentSource.isEmpty();
   }
 
   @Override
@@ -241,6 +288,9 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     }
     out.putString(KEY_ADDRESS, networkAddress);
     out.putIntArray(KEY_REDSTONE_OUT, redstoneOutputs.clone());
+    if (!residentSource.isEmpty()) {
+      out.putString(KEY_RESIDENT, residentSource);
+    }
   }
 
   private static String formatAddress(UUID uuid) {
@@ -507,7 +557,6 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   @Override
   public void setRemoved() {
     computer.clearReceiveHandlers();
-    ComputerManager.unregister(this);
     super.setRemoved();
   }
 }

@@ -16,6 +16,8 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -60,6 +62,16 @@ public class ComputerBlock extends BaseEntityBlock {
   }
 
   @Override
+  public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
+      Level level, BlockState state, BlockEntityType<T> type) {
+    if (level.isClientSide()) {
+      return null; // resident timers run server-side only
+    }
+    return createTickerHelper(
+        type, ModContent.COMPUTER_BLOCK_ENTITY, (lvl, pos, st, be) -> be.serverTick());
+  }
+
+  @Override
   protected InteractionResult useItemOn(
       ItemStack stack,
       BlockState state,
@@ -75,6 +87,8 @@ public class ComputerBlock extends BaseEntityBlock {
       if (!level.isClientSide()) {
         computer.setDisk(stack.copyWithCount(1));
         stack.shrink(1);
+        // Slotting a disk boots its `startup` program (if any), so a daemon can auto-run.
+        computer.bootStartup();
       }
       return InteractionResult.SUCCESS;
     }

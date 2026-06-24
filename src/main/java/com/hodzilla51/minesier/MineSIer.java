@@ -40,8 +40,6 @@ public class MineSIer implements ModInitializer {
 
     // Tick-paced turtle execution (drives running programs once per server tick).
     TurtleManager.init();
-    // Resident computer execution: drives every/after timers once per server tick.
-    ComputerManager.init();
     NetworkManager.init();
 
     // /js <script> — evaluate a JavaScript snippet via the embedded Rhino engine.

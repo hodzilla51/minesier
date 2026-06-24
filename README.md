@@ -134,8 +134,13 @@ freeze the server. Re-running a program (or calling `clearTimers()`) stops the
 old timers; removing the computer stops everything. Output printed by a callback
 is appended to the transcript and shown next time you open the terminal.
 
-Timers run only while the computer's chunk is loaded, and do not yet restart
-automatically after a world reload (planned).
+A running daemon **survives a world reload**: the program that started it is
+saved with the computer and re-run automatically when its chunk loads (JS state
+itself isn't serialized, so top-level setup runs again — keep it idempotent).
+Timers only fire while the chunk is loaded.
+
+You can also boot a daemon from a disk: save a program named `startup`, and it
+runs automatically the moment that disk is inserted into a computer.
 
 ### Wired networking (in development)
 
@@ -276,8 +281,7 @@ Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
 - ⏳ Wired computer networking (player-built switches, routers, and VPNs)
 - ✅ Redstone I/O (read/drive signals on any face from a program)
 - ✅ Monitors (in-world text display driven from code)
-- ✅ Resident execution (timers that keep running after the terminal closes)
-- ⏳ Resident execution persistence (auto-restart on world reload, startup programs)
+- ✅ Resident execution (timers that survive terminal close and world reload, plus startup disks)
 - 🌟 In-game code editor with type completion
 - 🔭 NeoForge support
 
