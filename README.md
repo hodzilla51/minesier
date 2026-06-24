@@ -69,6 +69,26 @@ selected slot) `place(id)` (e.g. `"minecraft:stone"`) `detect()` `inspect()`
 
 Global: `print(...)`. There is also a `/js <expression>` command for one-off evaluation.
 
+### Redstone I/O
+
+Any computer can read and drive redstone on its six faces. Sides are named
+relative to the screen — the same names as the network interfaces: `front`,
+`back`, `left`, `right`, `up`, `down`. Levels use the vanilla analog range
+`0..15`; `setOutput` also accepts a boolean (`false`/`true` → `0`/`15`).
+
+```js
+redstone.getInput("back");        // 0..15 entering the back face (0 is falsy)
+if (redstone.getInput("back")) print("powered!");
+
+redstone.setOutput("front", true); // emit full signal out the front
+redstone.setOutput("up", 7);       // emit analog strength 7 upward
+redstone.getOutput("up");          // 7
+redstone.getSides();               // ["front","back","left","right","up","down"]
+```
+
+Outputs persist with the world and keep emitting after the program ends, so a
+computer can latch a lamp, door, or piston on until told otherwise.
+
 ### Wired networking (in development)
 
 See the [networking specification](docs/networking.md) for the canonical API,
@@ -206,7 +226,8 @@ Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
 
 - ✅ JS engine, computer + terminal/editor, programmable turtle, disks
 - ⏳ Wired computer networking (player-built switches, routers, and VPNs)
-- ⏳ Peripherals (monitors, redstone I/O)
+- ✅ Redstone I/O (read/drive signals on any face from a program)
+- ⏳ Peripherals (monitors)
 - 🌟 In-game code editor with type completion
 - 🔭 NeoForge support
 

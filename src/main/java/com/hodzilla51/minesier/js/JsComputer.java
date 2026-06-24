@@ -42,6 +42,9 @@ public final class JsComputer {
    */
   private NetworkApi network;
 
+  /** Redstone I/O for the {@code redstone} global; null until a block-backed owner attaches one. */
+  private RedstoneApi redstone;
+
   /** Attaches the turtle this VM controls; call before {@link #run} on a turtle. */
   public void setTurtle(TurtleApi turtle) {
     this.turtle = turtle;
@@ -50,6 +53,11 @@ public final class JsComputer {
   /** Attaches the network interface owned by this VM's block entity. */
   public void setNetwork(NetworkApi network) {
     this.network = network;
+  }
+
+  /** Attaches the redstone I/O owned by this VM's block entity. */
+  public void setRedstone(RedstoneApi redstone) {
+    this.redstone = redstone;
   }
 
   /** Stops all event handlers owned by this VM. Called before a new terminal program runs. */
@@ -166,6 +174,13 @@ public final class JsComputer {
             ScriptableObject.putProperty(netObj, op, new NetworkFunction(op));
           }
           ScriptableObject.putProperty(scope, "net", netObj);
+        }
+        if (redstone != null) {
+          ScriptableObject redstoneObj = (ScriptableObject) cx.newObject(scope);
+          for (String op : new String[] {"getInput", "getOutput", "setOutput", "getSides"}) {
+            ScriptableObject.putProperty(redstoneObj, op, new RedstoneFunction(op));
+          }
+          ScriptableObject.putProperty(scope, "redstone", redstoneObj);
         }
       }
       this.sink = out;
@@ -502,6 +517,41 @@ public final class JsComputer {
             }
           });
       return object;
+    }
+  }
+
+  /** A method on the {@code redstone} global; delegates to the live {@link RedstoneApi}. */
+  private final class RedstoneFunction extends BaseFunction {
+    private final String op;
+
+    RedstoneFunction(String op) {
+      this.op = op;
+    }
+
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      RedstoneApi rs = redstone;
+      if (rs == null) {
+        return Undefined.instance;
+      }
+      return switch (op) {
+        case "getInput" -> args.length >= 1 ? rs.getInput(Context.toString(args[0])) : -1;
+        case "getOutput" -> args.length >= 1 ? rs.getOutput(Context.toString(args[0])) : -1;
+        case "setOutput" ->
+            args.length >= 2
+                ? rs.setOutput(Context.toString(args[0]), level(args[1]))
+                : Boolean.FALSE;
+        case "getSides" -> cx.newArray(scope, (Object[]) rs.sides());
+        default -> Undefined.instance;
+      };
+    }
+
+    /** Accepts a boolean (off/on -> 0/15) or a number (0..15) as the output level. */
+    private int level(Object value) {
+      if (value instanceof Boolean b) {
+        return b ? 15 : 0;
+      }
+      return (int) Context.toNumber(value);
     }
   }
 

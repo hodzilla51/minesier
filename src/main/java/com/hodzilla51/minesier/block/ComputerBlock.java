@@ -12,6 +12,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -91,5 +92,27 @@ public class ComputerBlock extends BaseEntityBlock {
           serverPlayer, new TerminalScreenS2C(pos, computer.getTranscript(), true));
     }
     return InteractionResult.SUCCESS;
+  }
+
+  @Override
+  protected boolean isSignalSource(BlockState state) {
+    return true;
+  }
+
+  @Override
+  protected int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+    // {@code direction} points from the querying neighbor toward us; the face emitting toward
+    // that neighbor is its opposite.
+    if (level.getBlockEntity(pos) instanceof ComputerBlockEntity computer) {
+      return computer.getRedstoneOutput(direction.getOpposite());
+    }
+    return 0;
+  }
+
+  @Override
+  protected int getDirectSignal(
+      BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+    // Emit the same strong (direct) power so the computer can drive dust through a solid block.
+    return getSignal(state, level, pos, direction);
   }
 }

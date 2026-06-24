@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.block;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.NetworkApi;
+import com.hodzilla51.minesier.js.RedstoneApi;
 import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
@@ -18,6 +19,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
@@ -34,6 +37,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   private static final String KEY_TRANSCRIPT = "Transcript";
   private static final String KEY_DISK = "Disk";
   private static final String KEY_ADDRESS = "NetworkAddress";
+  private static final String KEY_REDSTONE_OUT = "RedstoneOut";
   private static final int MAX_LINES = 200;
   private static final int MAX_INBOX_FRAMES = 64;
   private static final int MAX_FRAME_BYTES = 4 * 1024;
@@ -44,6 +48,12 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 
   private final List<String> transcript = new ArrayList<>(List.of(WELCOME));
   private final EnumMap<Direction, NicState> nics = new EnumMap<>(Direction.class);
+
+  /**
+   * Analog redstone level (0..15) this computer emits on each face, indexed by direction ordinal.
+   */
+  private final int[] redstoneOutputs = new int[Direction.values().length];
+
   private ItemStack disk = ItemStack.EMPTY;
   private String networkAddress = formatAddress(UUID.randomUUID());
 
@@ -53,6 +63,12 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
       nics.put(direction, new NicState());
     }
     computer.setNetwork(new ComputerNetworkApi());
+    computer.setRedstone(new ComputerRedstoneApi());
+  }
+
+  /** The analog level this computer emits toward {@code face} (read by the block as a signal). */
+  public int getRedstoneOutput(Direction face) {
+    return redstoneOutputs[face.ordinal()];
   }
 
   public String getNetworkAddress() {
@@ -183,6 +199,13 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     }
     this.disk = in.read(KEY_DISK, ItemStack.CODEC).orElse(ItemStack.EMPTY);
     this.networkAddress = in.getStringOr(KEY_ADDRESS, networkAddress);
+    in.getIntArray(KEY_REDSTONE_OUT)
+        .ifPresent(
+            outputs -> {
+              for (int i = 0; i < redstoneOutputs.length && i < outputs.length; i++) {
+                redstoneOutputs[i] = Math.max(0, Math.min(15, outputs[i]));
+              }
+            });
   }
 
   @Override
@@ -193,6 +216,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
       out.store(KEY_DISK, ItemStack.CODEC, disk);
     }
     out.putString(KEY_ADDRESS, networkAddress);
+    out.putIntArray(KEY_REDSTONE_OUT, redstoneOutputs.clone());
   }
 
   private static String formatAddress(UUID uuid) {
@@ -320,6 +344,66 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
       transcript.addAll(lines);
       trim();
       setChanged();
+    }
+  }
+
+  /** Reads the analog redstone level entering this computer from {@code face}. */
+  private int readRedstoneInput(Direction face) {
+    if (!(level instanceof ServerLevel serverLevel)) {
+      return 0;
+    }
+    BlockPos neighbor = worldPosition.relative(face);
+    int power = serverLevel.getSignal(neighbor, face);
+    BlockState neighborState = serverLevel.getBlockState(neighbor);
+    // Redstone dust only "points" power in its connected directions; treat any adjacent dust as
+    // input so a computer reads a wire running past it (matches ComputerCraft's behaviour).
+    if (neighborState.is(Blocks.REDSTONE_WIRE)) {
+      power = Math.max(power, neighborState.getValue(RedStoneWireBlock.POWER));
+    }
+    return power;
+  }
+
+  /**
+   * Sets the emitted level on {@code face}, clamping to 0..15 and notifying neighbors on change.
+   */
+  private void setRedstoneOutput(Direction face, int requested) {
+    int clamped = Math.max(0, Math.min(15, requested));
+    if (redstoneOutputs[face.ordinal()] == clamped) {
+      return;
+    }
+    redstoneOutputs[face.ordinal()] = clamped;
+    setChanged();
+    if (level instanceof ServerLevel serverLevel) {
+      serverLevel.updateNeighborsAt(worldPosition, getBlockState().getBlock(), null);
+    }
+  }
+
+  private final class ComputerRedstoneApi implements RedstoneApi {
+    @Override
+    public int getInput(String side) {
+      Direction face = parseFace(side);
+      return face == null ? -1 : readRedstoneInput(face);
+    }
+
+    @Override
+    public int getOutput(String side) {
+      Direction face = parseFace(side);
+      return face == null ? -1 : redstoneOutputs[face.ordinal()];
+    }
+
+    @Override
+    public boolean setOutput(String side, int level) {
+      Direction face = parseFace(side);
+      if (face == null) {
+        return false;
+      }
+      setRedstoneOutput(face, level);
+      return true;
+    }
+
+    @Override
+    public String[] sides() {
+      return new String[] {"front", "back", "left", "right", "up", "down"};
     }
   }
 
