@@ -71,6 +71,9 @@ Global: `print(...)`. There is also a `/js <expression>` command for one-off eva
 
 ### Wired networking (in development)
 
+See the [networking specification](docs/networking.md) for the canonical API,
+packet formats, limits, and implementation status.
+
 Each computer has one NIC on the face opposite its screen. Connect Cable to that
 face to send frames to computers in the same connected cable segment. Addresses
 remain stable while the world is saved.
@@ -175,6 +178,8 @@ var encrypted = crypto.aesGcmEncrypt(key, "hello");
 ```
 
 Also available: `randomBytes(count)`, `sha256(data)`, and `hmacSha256(key, data)`.
+See [the secure tunnel example](examples/secure_tunnel.js) for a two-endpoint
+encrypted channel built on top of `net`.
 
 ## Building from source
 
