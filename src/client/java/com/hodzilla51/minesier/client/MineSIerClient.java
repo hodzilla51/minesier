@@ -1,7 +1,6 @@
 package com.hodzilla51.minesier.client;
 
 import com.hodzilla51.minesier.ModContent;
-import com.hodzilla51.minesier.net.InventoryS2C;
 import com.hodzilla51.minesier.net.LoadProgramS2C;
 import com.hodzilla51.minesier.net.ProgramListS2C;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
@@ -11,6 +10,7 @@ import com.hodzilla51.minesier.net.TurtleVisualS2C;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.core.Direction;
 
 public class MineSIerClient implements ClientModInitializer {
@@ -98,13 +98,8 @@ public class MineSIerClient implements ClientModInitializer {
         (payload, context) ->
             context.client().execute(() -> ComputerScreen.showPrograms(payload.names())));
 
-    // Server replies with a turtle inventory snapshot for the read-only viewer.
-    ClientPlayNetworking.registerGlobalReceiver(
-        InventoryS2C.TYPE,
-        (payload, context) ->
-            context
-                .client()
-                .execute(() -> ComputerScreen.showInventory(payload.selected(), payload.slots())));
+    // The vanilla storage menu for turtles renders through our terminal-styled screen.
+    MenuScreens.register(ModContent.TURTLE_MENU, TurtleScreen::new);
 
     // The turtle block is INVISIBLE; this renderer draws it (and slides it on moves).
     BlockEntityRendererRegistry.register(

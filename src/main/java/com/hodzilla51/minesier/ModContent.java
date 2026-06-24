@@ -12,7 +12,10 @@ import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.block.WirelessModemBlock;
 import com.hodzilla51.minesier.block.WirelessModemBlockEntity;
 import com.hodzilla51.minesier.item.DiskContents;
+import com.hodzilla51.minesier.menu.TurtleMenu;
+import com.hodzilla51.minesier.menu.TurtleMenuData;
 import java.util.function.Function;
+import net.fabricmc.fabric.api.menu.v1.ExtendedMenuType;
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
@@ -21,6 +24,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
@@ -65,6 +69,14 @@ public final class ModContent {
       registerBlockEntity(WIRELESS_MODEM_ID, WirelessModemBlockEntity::new, WIRELESS_MODEM_BLOCK);
   public static final BlockEntityType<MonitorBlockEntity> MONITOR_BLOCK_ENTITY =
       registerBlockEntity(MONITOR_ID, MonitorBlockEntity::new, MONITOR_BLOCK);
+
+  /** Vanilla menu for the turtle storage screen (position and layout synced on open). */
+  public static final MenuType<TurtleMenu> TURTLE_MENU =
+      Registry.register(
+          BuiltInRegistries.MENU,
+          TURTLE_ID,
+          new ExtendedMenuType<TurtleMenu, TurtleMenuData>(
+              TurtleMenu::new, TurtleMenuData.STREAM_CODEC));
 
   /** Data component carrying a disk's program files (travels with the disk item). */
   public static final DataComponentType<DiskContents> DISK_CONTENTS =

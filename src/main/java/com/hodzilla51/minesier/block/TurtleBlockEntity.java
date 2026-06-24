@@ -61,12 +61,6 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
     return selectedSlot;
   }
 
-  /** Selects an inventory slot from the terminal inventory panel. */
-  public void selectInventorySlot(int slot) {
-    selectedSlot = Math.max(0, Math.min(inventory.size() - 1, slot));
-    setChanged();
-  }
-
   public TurtleNetworkState getNetwork() {
     return network;
   }

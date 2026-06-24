@@ -3,6 +3,8 @@ package com.hodzilla51.minesier.net;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.ProgramStore;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
+import com.hodzilla51.minesier.menu.TurtleMenu;
+import com.hodzilla51.minesier.menu.TurtleMenuProvider;
 import com.hodzilla51.minesier.turtle.TurtleManager;
 import java.util.Set;
 import java.util.TreeMap;
@@ -10,8 +12,6 @@ import java.util.TreeSet;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.NonNullList;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -28,16 +28,16 @@ public final class MineSIerNet {
     PayloadTypeRegistry.serverboundPlay().register(RunCommandC2S.TYPE, RunCommandC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay().register(ProgramActionC2S.TYPE, ProgramActionC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay()
-        .register(RequestInventoryC2S.TYPE, RequestInventoryC2S.CODEC);
+        .register(OpenTurtleInventoryC2S.TYPE, OpenTurtleInventoryC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay()
-        .register(TurtleInventoryActionC2S.TYPE, TurtleInventoryActionC2S.CODEC);
+        .register(OpenTurtleTerminalC2S.TYPE, OpenTurtleTerminalC2S.CODEC);
+    PayloadTypeRegistry.serverboundPlay().register(TurtleClickC2S.TYPE, TurtleClickC2S.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TerminalScreenS2C.TYPE, TerminalScreenS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TurtleMoveS2C.TYPE, TurtleMoveS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TurtleTurnS2C.TYPE, TurtleTurnS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TurtleVisualS2C.TYPE, TurtleVisualS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(LoadProgramS2C.TYPE, LoadProgramS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(ProgramListS2C.TYPE, ProgramListS2C.CODEC);
-    PayloadTypeRegistry.clientboundPlay().register(InventoryS2C.TYPE, InventoryS2C.CODEC);
   }
 
   /** Pushes the disk's program names to the player's open terminal (for the file tree pane). */
@@ -61,30 +61,26 @@ public final class MineSIerNet {
           context.server().execute(() -> handleProgram(player, payload));
         });
     ServerPlayNetworking.registerGlobalReceiver(
-        RequestInventoryC2S.TYPE,
+        OpenTurtleInventoryC2S.TYPE,
         (payload, context) -> {
           ServerPlayer player = context.player();
-          context.server().execute(() -> handleInventoryRequest(player, payload));
+          context.server().execute(() -> handleOpenInventory(player, payload));
         });
     ServerPlayNetworking.registerGlobalReceiver(
-        TurtleInventoryActionC2S.TYPE,
-        (payload, context) ->
-            context.server().execute(() -> handleInventoryAction(context.player(), payload)));
+        TurtleClickC2S.TYPE,
+        (payload, context) -> {
+          ServerPlayer player = context.player();
+          context.server().execute(() -> handleTurtleClick(player, payload));
+        });
+    ServerPlayNetworking.registerGlobalReceiver(
+        OpenTurtleTerminalC2S.TYPE,
+        (payload, context) -> {
+          ServerPlayer player = context.player();
+          context.server().execute(() -> handleOpenTerminal(player, payload));
+        });
   }
 
-  private static void handleInventoryRequest(ServerPlayer player, RequestInventoryC2S p) {
-    Level level = player.level();
-    BlockPos pos = p.pos();
-    if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR) {
-      return;
-    }
-    if (!(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)) {
-      return;
-    }
-    sendInventory(player, turtle);
-  }
-
-  private static void handleInventoryAction(ServerPlayer player, TurtleInventoryActionC2S p) {
+  private static void handleOpenInventory(ServerPlayer player, OpenTurtleInventoryC2S p) {
     Level level = player.level();
     BlockPos pos = p.pos();
     if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
@@ -92,53 +88,36 @@ public final class MineSIerNet {
         || TurtleManager.isRunning(level, pos)) {
       return;
     }
-    NonNullList<ItemStack> inventory = turtle.getInventory();
-    int slot = Math.max(0, Math.min(inventory.size() - 1, p.slot()));
-    turtle.selectInventorySlot(slot);
-    if (p.action() == TurtleInventoryActionC2S.INSERT_HELD) {
-      ItemStack held = player.getMainHandItem();
-      ItemStack existing = inventory.get(slot);
-      if (!held.isEmpty()
-          && (existing.isEmpty() || ItemStack.isSameItemSameComponents(existing, held))) {
-        int capacity =
-            existing.isEmpty()
-                ? held.getMaxStackSize()
-                : existing.getMaxStackSize() - existing.getCount();
-        int moved = Math.min(capacity, held.getCount());
-        if (moved > 0) {
-          if (existing.isEmpty()) inventory.set(slot, held.copyWithCount(moved));
-          else existing.grow(moved);
-          held.shrink(moved);
-          turtle.markChanged();
-        }
-      }
-    } else if (p.action() == TurtleInventoryActionC2S.EXTRACT) {
-      ItemStack extracted = inventory.get(slot);
-      if (!extracted.isEmpty()) {
-        inventory.set(slot, ItemStack.EMPTY);
-        if (!player.getInventory().add(extracted)) player.drop(extracted, false);
-        turtle.markChanged();
-      }
-    }
-    sendInventory(player, turtle);
+    player.openMenu(new TurtleMenuProvider(turtle, pos, p.screenWidth(), p.screenHeight()));
   }
 
-  private static void sendInventory(ServerPlayer player, TurtleBlockEntity turtle) {
-    NonNullList<ItemStack> inventory = turtle.getInventory();
-    StringBuilder slots = new StringBuilder();
-    for (int i = 0; i < inventory.size(); i++) {
-      if (i > 0) {
-        slots.append('\n');
-      }
-      ItemStack stack = inventory.get(i);
-      if (!stack.isEmpty()) {
-        slots
-            .append(BuiltInRegistries.ITEM.getKey(stack.getItem()))
-            .append(' ')
-            .append(stack.getCount());
+  private static void handleTurtleClick(ServerPlayer player, TurtleClickC2S p) {
+    // The menu validates reach + running state and owns the dupe-safe carried stack.
+    if (player.containerMenu instanceof TurtleMenu menu) {
+      if (p.slot() < 0) {
+        menu.storeCarried();
+      } else {
+        menu.take(player, p.slot(), p.shift());
       }
     }
-    ServerPlayNetworking.send(player, new InventoryS2C(turtle.getSelectedSlot(), slots.toString()));
+  }
+
+  private static void handleOpenTerminal(ServerPlayer player, OpenTurtleTerminalC2S p) {
+    Level level = player.level();
+    BlockPos pos = p.pos();
+    if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
+        || !(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)
+        || TurtleManager.isRunning(level, pos)) {
+      return;
+    }
+    if (player.containerMenu instanceof TurtleMenu menu && menu.turtlePos().equals(pos)) {
+      // Do not send the normal close-menu packet: it briefly drops the client to the world,
+      // recapturing and recentering the mouse before TerminalScreenS2C arrives.
+      player.doCloseContainer();
+    }
+    ServerPlayNetworking.send(
+        player, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
+    sendProgramList(player, turtle);
   }
 
   private static void handleProgram(ServerPlayer player, ProgramActionC2S p) {
