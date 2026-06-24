@@ -64,7 +64,8 @@ another computer, insert it, and **Load** — your program comes with it.
 ### Turtle API
 
 `forward()` `back()` `turnLeft()` `turnRight()` `dig()` `place()` (from the
-selected slot) `place(id)` (e.g. `"minecraft:stone"`) `detect()` `inspect()`
+selected slot, consuming one block item) `place(id)` (requires the selected
+block to match, e.g. `"minecraft:stone"`) `detect()` `inspect()`
 `getFuelLevel()` `refuel(n)` `wait(ticks)` `select(n)` `getSelectedSlot()`
 `getItemCount(n)`
 

@@ -22,8 +22,8 @@ public interface TurtleApi {
   boolean dig();
 
   /**
-   * Places the named block ({@code "minecraft:stone"}) ahead, creative-style; false if blocked or
-   * unknown.
+   * Places the selected block ahead only when it matches {@code blockId}; consumes one item and
+   * returns false when the slot is empty, mismatched, or blocked.
    */
   boolean place(String blockId);
 

@@ -154,25 +154,22 @@ public class TurtleAccess implements TurtleApi {
     if (id == null) {
       return false;
     }
-    Block block = BuiltInRegistries.BLOCK.getValue(id);
-    if (!BuiltInRegistries.BLOCK.getKey(block).equals(id)) {
-      return false; // unknown block id (defaulted to air)
-    }
-    BlockPos target = pos.relative(facing);
-    if (!level.getBlockState(target).canBeReplaced()) {
-      return false; // occupied
-    }
-    boolean placed = level.setBlock(target, block.defaultBlockState(), 3);
-    if (placed) {
-      emitVisual(TurtleVisualAction.PLACE, "PUT");
-    }
-    return placed;
+    return placeSelectedBlock(id);
   }
 
   @Override
   public boolean placeSelected() {
+    return placeSelectedBlock(null);
+  }
+
+  /** Places one selected block item, optionally requiring the requested block id. */
+  private boolean placeSelectedBlock(Identifier expectedBlockId) {
     ItemStack stack = inventory.get(selectedSlot);
     if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
+      return false;
+    }
+    Identifier actualBlockId = BuiltInRegistries.BLOCK.getKey(blockItem.getBlock());
+    if (expectedBlockId != null && !actualBlockId.equals(expectedBlockId)) {
       return false;
     }
     BlockPos target = pos.relative(facing);
