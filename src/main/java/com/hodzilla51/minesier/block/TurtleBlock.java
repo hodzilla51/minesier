@@ -35,7 +35,10 @@ public class TurtleBlock extends BaseEntityBlock {
   public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
 
   public TurtleBlock(Properties properties) {
-    super(properties);
+    // The visible turtle is rendered separately by its block entity and may float above this
+    // cell. Do not cull adjacent faces against the invisible logical block, or the floor shows a
+    // hole while the model is airborne. This does not change collision or occupancy.
+    super(properties.noOcclusion());
     registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH));
   }
 

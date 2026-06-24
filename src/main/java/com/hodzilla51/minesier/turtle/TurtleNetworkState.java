@@ -34,12 +34,14 @@ public final class TurtleNetworkState implements NetworkApi {
   private static final int MAX_INBOX_FRAMES = 64;
   private static final int MAX_FRAME_BYTES = 4 * 1024;
   private static final long SERVER_HOP_TIMEOUT_MS = 2_000L;
+  private static final long NETWORK_VISUAL_INTERVAL_TICKS = 4L;
 
   private final EnumMap<Direction, NicState> nics = new EnumMap<>(Direction.class);
   private volatile ServerLevel level;
   private volatile BlockPos pos;
   private volatile Direction facing = Direction.NORTH;
   private String networkAddress = formatAddress(UUID.randomUUID());
+  private long lastNetworkVisualTick = Long.MIN_VALUE;
 
   public TurtleNetworkState() {
     for (Direction direction : Direction.values()) {
@@ -268,10 +270,23 @@ public final class TurtleNetworkState implements NetworkApi {
     if (currentLevel == null || currentPos == null) {
       return;
     }
+    if (isNetworkVisual(action)) {
+      long tick = currentLevel.getGameTime();
+      if (tick - lastNetworkVisualTick < NETWORK_VISUAL_INTERVAL_TICKS) {
+        return;
+      }
+      lastNetworkVisualTick = tick;
+    }
     TurtleVisualS2C payload = new TurtleVisualS2C(currentPos, action, detail);
     for (var player : PlayerLookup.tracking(currentLevel, currentPos)) {
       ServerPlayNetworking.send(player, payload);
     }
+  }
+
+  private static boolean isNetworkVisual(TurtleVisualAction action) {
+    return action == TurtleVisualAction.NET_SEND
+        || action == TurtleVisualAction.NET_RECEIVE
+        || action == TurtleVisualAction.NET_FORWARD;
   }
 
   private <T> T onServer(ServerCall<T> action, T fallback) {

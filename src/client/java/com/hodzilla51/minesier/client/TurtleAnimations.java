@@ -16,6 +16,7 @@ import net.minecraft.core.Direction;
  */
 public final class TurtleAnimations {
   public static final long EFFECT_TICKS = 12L;
+  private static final int MAX_EFFECTS_PER_TURTLE = 12;
 
   public record Slide(Direction fromDir, long startTick) {}
 
@@ -53,6 +54,11 @@ public final class TurtleAnimations {
     BlockPos key = pos.immutable();
     Deque<Effect> effects = EFFECTS.computeIfAbsent(key, ignored -> new ConcurrentLinkedDeque<>());
     synchronized (effects) {
+      if (effects.size() >= MAX_EFFECTS_PER_TURTLE) {
+        // Preserve the effect currently visible to the player; newer cosmetic events can be
+        // dropped safely under a traffic burst.
+        return;
+      }
       Effect last = effects.peekLast();
       long startTick =
           last == null ? clientTick : Math.max(clientTick, last.startTick() + EFFECT_TICKS);
