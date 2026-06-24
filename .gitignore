@@ -42,6 +42,7 @@ replay_*.log
 # ai assistants (local AI config / memory — not shared)
 .claude/
 CLAUDE.md
+.codex/
 .cursor/
 .aider*
 .continue/
