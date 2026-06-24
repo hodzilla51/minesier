@@ -32,6 +32,8 @@ network behavior such as routing, NAT, VPNs, and transport protocols should
 remain programmable unless there is a clear beginner-facing reason to provide
 a managed block.
 
+All participants must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Pull requests
 
 - Explain the user-visible behavior and design trade-offs.

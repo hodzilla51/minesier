@@ -215,7 +215,7 @@ Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
 Issues and pull requests are welcome. Working language is English. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for development, formatting, and pull request
 guidelines. Security-sensitive reports belong in [SECURITY.md](SECURITY.md), not
-in public issues.
+in public issues. Community expectations are in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## License
 
