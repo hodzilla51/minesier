@@ -131,7 +131,9 @@ public class TurtleBlockEntityRenderer
     if (state.tiltZDeg != 0f) {
       poseStack.rotateAround(Axis.ZP.rotationDegrees(state.tiltZDeg), 0.5f, 0.5f, 0.5f);
     }
-    state.model.submit(poseStack, collector, state.lightCoords, 0, 0);
+    // The final argument is the model tint multiplier. Zero blacks out the block model;
+    // opaque white preserves its baked texture colors.
+    state.model.submit(poseStack, collector, state.lightCoords, 0, 0xFFFFFFFF);
     submitScreen(state, poseStack, collector);
     poseStack.popPose();
   }
