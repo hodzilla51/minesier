@@ -6,5 +6,8 @@ public enum TurtleVisualAction {
   PLACE,
   PICKUP,
   OUT_OF_FUEL,
-  ERROR
+  ERROR,
+  NET_SEND,
+  NET_RECEIVE,
+  NET_FORWARD
 }

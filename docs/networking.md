@@ -27,8 +27,8 @@ and bandwidth limits are tracked in GitHub issue #12.
 
 ## NICs
 
-Every Computer face is an independent NIC. JavaScript names faces relative to
-the computer's screen:
+Every Computer and Turtle face is an independent NIC. JavaScript names faces
+relative to the device's front:
 
 | Name | Physical face |
 | --- | --- |
@@ -40,8 +40,9 @@ the computer's screen:
 `net.address()`, `net.send()`, and `net.receive()` use the `back` NIC for
 compatibility. Use `net.nic(name)` for a specific NIC.
 
-Each NIC has a stable MAC-like address while its Computer block remains saved
-in the world. `net.nic(name).address()` returns its address.
+Each NIC has a stable MAC-like address while its device remains saved in the
+world. A Turtle carries its addresses across block-by-block movement.
+`net.nic(name).address()` returns its address.
 
 ## Layer 2 frames
 

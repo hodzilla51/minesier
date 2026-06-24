@@ -2,6 +2,7 @@ package com.hodzilla51.minesier.turtle;
 
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.TurtleApi;
+import com.hodzilla51.minesier.net.TurtleVisualAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +92,9 @@ public final class TurtleBrain {
 
   private void runProgram() {
     List<String> out = vm.run(program);
+    if (out.stream().anyMatch(line -> line.startsWith("error:"))) {
+      world.visual(TurtleVisualAction.ERROR, "!");
+    }
     synchronized (lock) {
       output.addAll(out);
       finished = true;
@@ -210,6 +214,11 @@ public final class TurtleBrain {
         @Override
         public void waitTicks(int ticks) {
           call("wait", Math.max(0, ticks));
+        }
+
+        @Override
+        public void visual(TurtleVisualAction action, String detail) {
+          world.visual(action, detail);
         }
 
         @Override

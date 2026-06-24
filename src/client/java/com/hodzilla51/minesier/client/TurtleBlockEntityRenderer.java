@@ -2,6 +2,7 @@ package com.hodzilla51.minesier.client;
 
 import com.hodzilla51.minesier.block.TurtleBlock;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
+import com.hodzilla51.minesier.net.TurtleVisualAction;
 import com.hodzilla51.minesier.turtle.TurtleBrain;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
@@ -13,11 +14,16 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
+import net.minecraft.client.renderer.item.ItemModelResolver;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -34,9 +40,11 @@ public class TurtleBlockEntityRenderer
   private static final int FULL_BRIGHT = 0xF000F0;
 
   private final Font font;
+  private final ItemModelResolver itemModelResolver;
 
   public TurtleBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
     this.font = context.font();
+    this.itemModelResolver = context.itemModelResolver();
   }
 
   @Override
@@ -75,6 +83,8 @@ public class TurtleBlockEntityRenderer
     state.tiltZDeg = 0f;
     state.screenText = ((gameTime / 6) & 1) == 0 ? ">_" : "> ";
     state.screenColor = 0xFF9CFF9C;
+    state.pickupItem.clear();
+    state.showPickupItem = false;
 
     TurtleAnimations.Slide slide = TurtleAnimations.get(pos);
     if (slide != null) {
@@ -102,6 +112,9 @@ public class TurtleBlockEntityRenderer
           (gameTime + partialTick - effect.startTick()) / TurtleAnimations.EFFECT_TICKS;
       if (progress >= 0f && progress < 1f) {
         applyEffect(state, effect, progress);
+        if (effect.action() == TurtleVisualAction.PICKUP) {
+          configurePickupItem(state, level, effect.detail());
+        }
       }
     }
   }
@@ -179,6 +192,18 @@ public class TurtleBlockEntityRenderer
         state.screenColor = 0xFFFFD34D;
       }
       case ERROR -> state.screenColor = 0xFFFF5555;
+      case NET_SEND -> {
+        state.screenText = networkScreenText(progress, true);
+        state.screenColor = 0xFF8AD8FF;
+      }
+      case NET_RECEIVE -> {
+        state.screenText = networkScreenText(progress, false);
+        state.screenColor = 0xFF8AD8FF;
+      }
+      case NET_FORWARD -> {
+        state.screenText = progress < 0.33f ? ">." : progress < 0.66f ? ".>" : ">>";
+        state.screenColor = 0xFF8AD8FF;
+      }
     }
   }
 
@@ -202,7 +227,30 @@ public class TurtleBlockEntityRenderer
         state.screenColor,
         0,
         0);
+    if (state.showPickupItem) {
+      poseStack.pushPose();
+      poseStack.scale(0.45f, 0.45f, 0.45f);
+      state.pickupItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      poseStack.popPose();
+    }
     poseStack.popPose();
+  }
+
+  private void configurePickupItem(TurtleRenderState state, Level level, String itemId) {
+    Identifier id = Identifier.tryParse(itemId);
+    if (id == null) {
+      return;
+    }
+    var item = BuiltInRegistries.ITEM.getValue(id);
+    if (!BuiltInRegistries.ITEM.getKey(item).equals(id)) {
+      return;
+    }
+    itemModelResolver.updateForTopItem(
+        state.pickupItem, new ItemStack(item), ItemDisplayContext.GUI, level, null, 0);
+    state.showPickupItem = !state.pickupItem.isEmpty();
+    if (state.showPickupItem) {
+      state.screenText = "";
+    }
   }
 
   private static float easeOutBack(float progress) {
@@ -212,6 +260,17 @@ public class TurtleBlockEntityRenderer
 
   private static String compactScreenText(String value) {
     return value.length() <= 3 ? value : value.substring(0, 3);
+  }
+
+  /** A tiny Windows-style transfer: folder ([]), paper (.), and network globe (@). */
+  private static String networkScreenText(float progress, boolean sending) {
+    if (progress < 0.33f) {
+      return sending ? "[]" : "@";
+    }
+    if (progress < 0.66f) {
+      return ".";
+    }
+    return sending ? "@" : "[]";
   }
 
   private static MovingBlockRenderState createMovingBlock(

@@ -1,6 +1,7 @@
 package com.hodzilla51.minesier.net;
 
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
+import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,6 +56,8 @@ public final class WirelessNetwork {
         if (level.getBlockEntity(neighbor) instanceof ComputerBlockEntity computer) {
           // The computer's face that touches this modem is the opposite of modem->neighbor.
           computer.offerFrame(direction.getOpposite(), frame);
+        } else if (level.getBlockEntity(neighbor) instanceof TurtleBlockEntity turtle) {
+          turtle.offerFrame(direction.getOpposite(), frame);
         }
       }
     }

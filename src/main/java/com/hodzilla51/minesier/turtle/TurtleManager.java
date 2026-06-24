@@ -59,8 +59,14 @@ public final class TurtleManager {
       inventory.set(i, be.getInventory().get(i).copy());
     }
     Direction facing = level.getBlockState(pos).getValue(TurtleBlock.FACING);
+    TurtleNetworkState network = be.getNetwork();
+    if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+      network.attach(serverLevel, pos, facing);
+    }
+    vm.setNetwork(network);
     TurtleAccess world =
-        new TurtleAccess(level, pos, facing, be.getFuel(), inventory, be.getSelectedSlot());
+        new TurtleAccess(
+            level, pos, facing, be.getFuel(), inventory, be.getSelectedSlot(), network);
     TurtleBrain brain = new TurtleBrain(vm, world, command);
 
     List<String> base = new ArrayList<>(List.of(be.getTranscript().split("\n", -1)));

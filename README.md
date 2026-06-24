@@ -65,7 +65,11 @@ another computer, insert it, and **Load** — your program comes with it.
 
 `forward()` `back()` `turnLeft()` `turnRight()` `dig()` `place()` (from the
 selected slot) `place(id)` (e.g. `"minecraft:stone"`) `detect()` `inspect()`
-`getFuelLevel()` `refuel(n)` `select(n)` `getSelectedSlot()` `getItemCount(n)`
+`getFuelLevel()` `refuel(n)` `wait(ticks)` `select(n)` `getSelectedSlot()`
+`getItemCount(n)`
+
+Turtles also expose the same `net` and `net.nic(side)` API as Computers. Their
+MAC-like addresses and queued frames survive block-by-block movement.
 
 Global: `print(...)`. There is also a `/js <expression>` command for one-off evaluation.
 
@@ -94,9 +98,9 @@ computer can latch a lamp, door, or piston on until told otherwise.
 See the [networking specification](docs/networking.md) for the canonical API,
 packet formats, limits, and implementation status.
 
-Each computer has one NIC on the face opposite its screen. Connect Cable to that
-face to send frames to computers in the same connected cable segment. Addresses
-remain stable while the world is saved.
+Computers and Turtles have one NIC on every face. Connect Cable to the desired
+face to exchange frames with devices in the same connected cable segment.
+Addresses remain stable while the world is saved, including when a Turtle moves.
 
 ```js
 print(net.address());                 // this computer's MAC-like address

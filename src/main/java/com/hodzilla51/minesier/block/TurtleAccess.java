@@ -2,10 +2,12 @@ package com.hodzilla51.minesier.block;
 
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.TurtleApi;
+import com.hodzilla51.minesier.net.NetworkManager;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
 import com.hodzilla51.minesier.net.TurtleTurnS2C;
 import com.hodzilla51.minesier.net.TurtleVisualAction;
 import com.hodzilla51.minesier.net.TurtleVisualS2C;
+import com.hodzilla51.minesier.turtle.TurtleNetworkState;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -35,6 +37,7 @@ public class TurtleAccess implements TurtleApi {
   private int fuel;
   private final NonNullList<ItemStack> inventory;
   private int selectedSlot;
+  private final TurtleNetworkState network;
 
   public TurtleAccess(
       Level level,
@@ -42,13 +45,18 @@ public class TurtleAccess implements TurtleApi {
       Direction facing,
       int fuel,
       NonNullList<ItemStack> inventory,
-      int selectedSlot) {
+      int selectedSlot,
+      TurtleNetworkState network) {
     this.level = level;
     this.pos = pos;
     this.facing = facing;
     this.fuel = fuel;
     this.inventory = inventory;
     this.selectedSlot = selectedSlot;
+    this.network = network;
+    if (level instanceof ServerLevel serverLevel) {
+      network.attach(serverLevel, pos, facing);
+    }
   }
 
   public BlockPos pos() {
@@ -102,6 +110,7 @@ public class TurtleAccess implements TurtleApi {
       level.setBlock(pos, here.setValue(TurtleBlock.FACING, facing), 3);
     }
     if (level instanceof ServerLevel serverLevel) {
+      network.attach(serverLevel, pos, facing);
       for (ServerPlayer player : PlayerLookup.tracking(serverLevel, pos)) {
         ServerPlayNetworking.send(player, new TurtleTurnS2C(pos, clockwise));
       }
@@ -122,7 +131,7 @@ public class TurtleAccess implements TurtleApi {
           Block.getDrops(state, serverLevel, target, level.getBlockEntity(target));
       for (ItemStack drop : drops) {
         if (!drop.isEmpty()) {
-          pickupDetail = BuiltInRegistries.ITEM.getKey(drop.getItem()).getPath().toUpperCase();
+          pickupDetail = BuiltInRegistries.ITEM.getKey(drop.getItem()).toString();
         }
         ItemStack leftover = insert(drop);
         if (!leftover.isEmpty()) {
@@ -181,6 +190,11 @@ public class TurtleAccess implements TurtleApi {
   @Override
   public void waitTicks(int ticks) {
     // TurtleBrain owns the tick-paced wait. This method intentionally has no world effect.
+  }
+
+  @Override
+  public void visual(TurtleVisualAction action, String detail) {
+    NetworkManager.schedule(() -> emitVisual(action, detail));
   }
 
   @Override
@@ -258,6 +272,9 @@ public class TurtleAccess implements TurtleApi {
         target,
         ModContent.TURTLE_BLOCK.defaultBlockState().setValue(TurtleBlock.FACING, facing),
         3);
+    if (level.getBlockEntity(target) instanceof TurtleBlockEntity turtle) {
+      turtle.adoptNetwork(network);
+    }
     level.removeBlock(pos, false);
     // Tell nearby clients to slide the turtle in from where it came (smooth animation).
     if (level instanceof ServerLevel serverLevel) {
@@ -267,6 +284,9 @@ public class TurtleAccess implements TurtleApi {
       }
     }
     pos = target;
+    if (level instanceof ServerLevel serverLevel) {
+      network.attach(serverLevel, pos, facing);
+    }
     fuel--;
     return true;
   }

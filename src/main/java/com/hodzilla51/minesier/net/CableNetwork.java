@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.net;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.SwitchBlockEntity;
+import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Set;
@@ -55,6 +56,9 @@ public final class CableNetwork {
         } else if (state.is(ModContent.COMPUTER_BLOCK)
             && level.getBlockEntity(adjacent) instanceof ComputerBlockEntity computer) {
           computer.offerFrame(direction.getOpposite(), frame);
+        } else if (state.is(ModContent.TURTLE_BLOCK)
+            && level.getBlockEntity(adjacent) instanceof TurtleBlockEntity turtle) {
+          turtle.offerFrame(direction.getOpposite(), frame);
         } else if (state.is(ModContent.SWITCH_BLOCK)
             && level.getBlockEntity(adjacent) instanceof SwitchBlockEntity networkSwitch) {
           networkSwitch.offerFrame(direction.getOpposite(), frame);

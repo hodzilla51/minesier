@@ -1,5 +1,7 @@
 package com.hodzilla51.minesier.js;
 
+import com.hodzilla51.minesier.net.TurtleVisualAction;
+
 /**
  * The world-facing actions a turtle program can call, exposed to scripts as the {@code turtle}
  * global. Movement returns whether it succeeded; it costs fuel and fails when the tank is empty.
@@ -54,4 +56,7 @@ public interface TurtleApi {
 
   /** Adds fuel (creative placeholder until inventory-based refuel lands). */
   void refuel(int amount);
+
+  /** Emits a renderer-only status effect; used internally for execution errors. */
+  void visual(TurtleVisualAction action, String detail);
 }
