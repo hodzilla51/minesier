@@ -3,6 +3,8 @@ package com.hodzilla51.minesier;
 import com.hodzilla51.minesier.block.CableBlock;
 import com.hodzilla51.minesier.block.ComputerBlock;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
+import com.hodzilla51.minesier.block.MonitorBlock;
+import com.hodzilla51.minesier.block.MonitorBlockEntity;
 import com.hodzilla51.minesier.block.SwitchBlock;
 import com.hodzilla51.minesier.block.SwitchBlockEntity;
 import com.hodzilla51.minesier.block.TurtleBlock;
@@ -42,6 +44,8 @@ public final class ModContent {
       Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "turtle");
   public static final Identifier WIRELESS_MODEM_ID =
       Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "wireless_modem");
+  public static final Identifier MONITOR_ID =
+      Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "monitor");
 
   public static final Block COMPUTER_BLOCK = registerBlock(COMPUTER_ID, ComputerBlock::new);
   public static final Block CABLE_BLOCK = registerBlock(CABLE_ID, CableBlock::new);
@@ -49,6 +53,7 @@ public final class ModContent {
   public static final Block TURTLE_BLOCK = registerBlock(TURTLE_ID, TurtleBlock::new);
   public static final Block WIRELESS_MODEM_BLOCK =
       registerBlock(WIRELESS_MODEM_ID, WirelessModemBlock::new);
+  public static final Block MONITOR_BLOCK = registerBlock(MONITOR_ID, MonitorBlock::new);
 
   public static final BlockEntityType<ComputerBlockEntity> COMPUTER_BLOCK_ENTITY =
       registerBlockEntity(COMPUTER_ID, ComputerBlockEntity::new, COMPUTER_BLOCK);
@@ -58,6 +63,8 @@ public final class ModContent {
       registerBlockEntity(TURTLE_ID, TurtleBlockEntity::new, TURTLE_BLOCK);
   public static final BlockEntityType<WirelessModemBlockEntity> WIRELESS_MODEM_BLOCK_ENTITY =
       registerBlockEntity(WIRELESS_MODEM_ID, WirelessModemBlockEntity::new, WIRELESS_MODEM_BLOCK);
+  public static final BlockEntityType<MonitorBlockEntity> MONITOR_BLOCK_ENTITY =
+      registerBlockEntity(MONITOR_ID, MonitorBlockEntity::new, MONITOR_BLOCK);
 
   /** Data component carrying a disk's program files (travels with the disk item). */
   public static final DataComponentType<DiskContents> DISK_CONTENTS =
@@ -87,6 +94,7 @@ public final class ModContent {
                   output.accept(CABLE_BLOCK);
                   output.accept(SWITCH_BLOCK);
                   output.accept(WIRELESS_MODEM_BLOCK);
+                  output.accept(MONITOR_BLOCK);
                   output.accept(TURTLE_BLOCK);
                   output.accept(DISK);
                 })

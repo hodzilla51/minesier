@@ -45,6 +45,9 @@ public final class JsComputer {
   /** Redstone I/O for the {@code redstone} global; null until a block-backed owner attaches one. */
   private RedstoneApi redstone;
 
+  /** Monitor I/O for the {@code monitor} global; null until a block-backed owner attaches one. */
+  private MonitorApi monitor;
+
   /** Attaches the turtle this VM controls; call before {@link #run} on a turtle. */
   public void setTurtle(TurtleApi turtle) {
     this.turtle = turtle;
@@ -58,6 +61,11 @@ public final class JsComputer {
   /** Attaches the redstone I/O owned by this VM's block entity. */
   public void setRedstone(RedstoneApi redstone) {
     this.redstone = redstone;
+  }
+
+  /** Attaches the monitor I/O owned by this VM's block entity. */
+  public void setMonitor(MonitorApi monitor) {
+    this.monitor = monitor;
   }
 
   /** Stops all event handlers owned by this VM. Called before a new terminal program runs. */
@@ -181,6 +189,11 @@ public final class JsComputer {
             ScriptableObject.putProperty(redstoneObj, op, new RedstoneFunction(op));
           }
           ScriptableObject.putProperty(scope, "redstone", redstoneObj);
+        }
+        if (monitor != null) {
+          ScriptableObject monitorObj = (ScriptableObject) cx.newObject(scope);
+          ScriptableObject.putProperty(monitorObj, "at", new MonitorFunction());
+          ScriptableObject.putProperty(scope, "monitor", monitorObj);
         }
       }
       this.sink = out;
@@ -552,6 +565,57 @@ public final class JsComputer {
         return b ? 15 : 0;
       }
       return (int) Context.toNumber(value);
+    }
+  }
+
+  /** The {@code monitor.at(side)} method: returns a handle to the monitor on that face, or null. */
+  private final class MonitorFunction extends BaseFunction {
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      MonitorApi m = monitor;
+      if (m == null || args.length < 1) {
+        return null;
+      }
+      String side = Context.toString(args[0]);
+      if (!m.exists(side)) {
+        return null;
+      }
+      ScriptableObject handle = (ScriptableObject) cx.newObject(scope);
+      for (String op : new String[] {"write", "setLine", "setText", "clear", "rows", "columns"}) {
+        ScriptableObject.putProperty(handle, op, new MonitorHandleFunction(side, op));
+      }
+      return handle;
+    }
+  }
+
+  /** A method on one monitor handle; delegates to the live {@link MonitorApi} for its side. */
+  private final class MonitorHandleFunction extends BaseFunction {
+    private final String side;
+    private final String op;
+
+    MonitorHandleFunction(String side, String op) {
+      this.side = side;
+      this.op = op;
+    }
+
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      MonitorApi m = monitor;
+      if (m == null) {
+        return Boolean.FALSE;
+      }
+      return switch (op) {
+        case "write" -> m.write(side, args.length >= 1 ? Context.toString(args[0]) : "");
+        case "setLine" ->
+            args.length >= 2
+                ? m.setLine(side, (int) Context.toNumber(args[0]), Context.toString(args[1]))
+                : Boolean.FALSE;
+        case "setText" -> m.setText(side, args.length >= 1 ? Context.toString(args[0]) : "");
+        case "clear" -> m.clear(side);
+        case "rows" -> m.rows(side);
+        case "columns" -> m.columns(side);
+        default -> Boolean.FALSE;
+      };
     }
   }
 

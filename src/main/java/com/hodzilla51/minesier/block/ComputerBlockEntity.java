@@ -2,6 +2,7 @@ package com.hodzilla51.minesier.block;
 
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
+import com.hodzilla51.minesier.js.MonitorApi;
 import com.hodzilla51.minesier.js.NetworkApi;
 import com.hodzilla51.minesier.js.RedstoneApi;
 import com.hodzilla51.minesier.net.CableNetwork;
@@ -64,6 +65,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     }
     computer.setNetwork(new ComputerNetworkApi());
     computer.setRedstone(new ComputerRedstoneApi());
+    computer.setMonitor(new ComputerMonitorApi());
   }
 
   /** The analog level this computer emits toward {@code face} (read by the block as a signal). */
@@ -404,6 +406,71 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     @Override
     public String[] sides() {
       return new String[] {"front", "back", "left", "right", "up", "down"};
+    }
+  }
+
+  /** Resolves the Monitor block on {@code side}, or null if that face has none. */
+  private MonitorBlockEntity monitorOn(String side) {
+    Direction face = parseFace(side);
+    if (face == null || !(level instanceof ServerLevel serverLevel)) {
+      return null;
+    }
+    return serverLevel.getBlockEntity(worldPosition.relative(face))
+            instanceof MonitorBlockEntity monitor
+        ? monitor
+        : null;
+  }
+
+  private final class ComputerMonitorApi implements MonitorApi {
+    @Override
+    public boolean exists(String side) {
+      return monitorOn(side) != null;
+    }
+
+    @Override
+    public boolean write(String side, String text) {
+      MonitorBlockEntity monitor = monitorOn(side);
+      if (monitor == null) {
+        return false;
+      }
+      monitor.write(text);
+      return true;
+    }
+
+    @Override
+    public boolean setLine(String side, int row, String text) {
+      MonitorBlockEntity monitor = monitorOn(side);
+      return monitor != null && monitor.setLine(row, text);
+    }
+
+    @Override
+    public boolean setText(String side, String text) {
+      MonitorBlockEntity monitor = monitorOn(side);
+      if (monitor == null) {
+        return false;
+      }
+      monitor.setText(text);
+      return true;
+    }
+
+    @Override
+    public boolean clear(String side) {
+      MonitorBlockEntity monitor = monitorOn(side);
+      if (monitor == null) {
+        return false;
+      }
+      monitor.clear();
+      return true;
+    }
+
+    @Override
+    public int rows(String side) {
+      return monitorOn(side) == null ? -1 : MonitorBlockEntity.ROWS;
+    }
+
+    @Override
+    public int columns(String side) {
+      return monitorOn(side) == null ? -1 : MonitorBlockEntity.COLUMNS;
     }
   }
 

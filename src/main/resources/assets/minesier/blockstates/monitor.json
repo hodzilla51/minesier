@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "minesier:block/monitor" },
+    "facing=east":  { "model": "minesier:block/monitor", "y": 90 },
+    "facing=south": { "model": "minesier:block/monitor", "y": 180 },
+    "facing=west":  { "model": "minesier:block/monitor", "y": 270 }
+  }
+}

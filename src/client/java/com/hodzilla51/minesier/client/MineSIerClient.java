@@ -86,5 +86,9 @@ public class MineSIerClient implements ClientModInitializer {
     // The turtle block is INVISIBLE; this renderer draws it (and slides it on moves).
     BlockEntityRendererRegistry.register(
         ModContent.TURTLE_BLOCK_ENTITY, TurtleBlockEntityRenderer::new);
+
+    // Draws the monitor's text buffer on its screen face.
+    BlockEntityRendererRegistry.register(
+        ModContent.MONITOR_BLOCK_ENTITY, MonitorBlockEntityRenderer::new);
   }
 }

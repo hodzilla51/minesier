@@ -4,6 +4,7 @@
   "block.minesier.switch": "Switch",
   "block.minesier.wireless_modem": "Wireless Modem",
   "block.minesier.turtle": "Turtle",
+  "block.minesier.monitor": "Monitor",
   "item.minesier.disk": "Disk",
   "itemGroup.minesier.main": "MineSIer"
 }
