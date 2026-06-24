@@ -4,6 +4,8 @@ import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.TurtleApi;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
 import com.hodzilla51.minesier.net.TurtleTurnS2C;
+import com.hodzilla51.minesier.net.TurtleVisualAction;
+import com.hodzilla51.minesier.net.TurtleVisualS2C;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -113,18 +115,28 @@ public class TurtleAccess implements TurtleApi {
     if (state.canBeReplaced()) {
       return false; // nothing solid to dig
     }
+    String pickupDetail = "GET";
     // Collect the block's drops into the turtle's inventory (overflow pops into the world).
     if (level instanceof ServerLevel serverLevel) {
       List<ItemStack> drops =
           Block.getDrops(state, serverLevel, target, level.getBlockEntity(target));
       for (ItemStack drop : drops) {
+        if (!drop.isEmpty()) {
+          pickupDetail = BuiltInRegistries.ITEM.getKey(drop.getItem()).getPath().toUpperCase();
+        }
         ItemStack leftover = insert(drop);
         if (!leftover.isEmpty()) {
           Block.popResource(level, pos, leftover);
         }
       }
     }
-    return level.destroyBlock(target, false, null, 512); // false: we already took the drops
+    boolean destroyed =
+        level.destroyBlock(target, false, null, 512); // false: we already took drops
+    if (destroyed) {
+      emitVisual(TurtleVisualAction.DIG, "DIG");
+      emitVisual(TurtleVisualAction.PICKUP, pickupDetail);
+    }
+    return destroyed;
   }
 
   @Override
@@ -141,7 +153,11 @@ public class TurtleAccess implements TurtleApi {
     if (!level.getBlockState(target).canBeReplaced()) {
       return false; // occupied
     }
-    return level.setBlock(target, block.defaultBlockState(), 3);
+    boolean placed = level.setBlock(target, block.defaultBlockState(), 3);
+    if (placed) {
+      emitVisual(TurtleVisualAction.PLACE, "PUT");
+    }
+    return placed;
   }
 
   @Override
@@ -156,6 +172,7 @@ public class TurtleAccess implements TurtleApi {
     }
     if (level.setBlock(target, blockItem.getBlock().defaultBlockState(), 3)) {
       stack.shrink(1);
+      emitVisual(TurtleVisualAction.PLACE, "PUT");
       return true;
     }
     return false;
@@ -225,6 +242,7 @@ public class TurtleAccess implements TurtleApi {
 
   private boolean move(Direction direction) {
     if (fuel <= 0) {
+      emitVisual(TurtleVisualAction.OUT_OF_FUEL, "!");
       return false; // out of fuel
     }
     BlockPos target = pos.relative(direction);
@@ -246,5 +264,15 @@ public class TurtleAccess implements TurtleApi {
     pos = target;
     fuel--;
     return true;
+  }
+
+  private void emitVisual(TurtleVisualAction action, String detail) {
+    if (!(level instanceof ServerLevel serverLevel)) {
+      return;
+    }
+    TurtleVisualS2C payload = new TurtleVisualS2C(pos, action, detail);
+    for (ServerPlayer player : PlayerLookup.tracking(serverLevel, pos)) {
+      ServerPlayNetworking.send(player, payload);
+    }
   }
 }

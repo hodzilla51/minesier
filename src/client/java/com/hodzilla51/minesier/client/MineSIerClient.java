@@ -6,6 +6,7 @@ import com.hodzilla51.minesier.net.LoadProgramS2C;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
 import com.hodzilla51.minesier.net.TurtleTurnS2C;
+import com.hodzilla51.minesier.net.TurtleVisualS2C;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
@@ -67,6 +68,21 @@ public class MineSIerClient implements ClientModInitializer {
                       // before).
                       float deltaDeg = payload.clockwise() ? 90f : -90f;
                       TurtleAnimations.beginTurn(payload.pos(), deltaDeg, tick);
+                    }));
+
+    ClientPlayNetworking.registerGlobalReceiver(
+        TurtleVisualS2C.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(
+                    () -> {
+                      long tick =
+                          context.client().level != null
+                              ? context.client().level.getGameTime()
+                              : 0L;
+                      TurtleAnimations.beginEffect(
+                          payload.pos(), payload.action(), payload.detail(), tick);
                     }));
 
     // Server sends a saved program's source to drop into the editor.
