@@ -172,6 +172,11 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
    * into the transcript. Returns whether this computer still has live timers.
    */
   public boolean tickDaemon() {
+    // Only the live, canonical block entity at this position should run timers. If the chunk
+    // unloaded or this instance was replaced, stop ticking it (and let the manager drop it).
+    if (level == null || level.getBlockEntity(worldPosition) != this) {
+      return false;
+    }
     List<String> out = computer.tickTimers();
     if (!out.isEmpty()) {
       transcript.addAll(out);
