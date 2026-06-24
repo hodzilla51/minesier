@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.client;
 import com.hodzilla51.minesier.net.ProgramActionC2S;
 import com.hodzilla51.minesier.net.RequestInventoryC2S;
 import com.hodzilla51.minesier.net.RunCommandC2S;
+import com.hodzilla51.minesier.net.TurtleInventoryActionC2S;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -51,6 +52,7 @@ public class ComputerScreen extends Screen {
   private MultiLineEditBox editor;
   private EditBox nameField;
   private final List<AbstractWidget> terminalWidgets = new ArrayList<>();
+  private final List<AbstractWidget> inventoryWidgets = new ArrayList<>();
 
   private int invSelected = -1;
   private String[] invSlots = new String[0];
@@ -94,6 +96,7 @@ public class ComputerScreen extends Screen {
   protected void init() {
     Font font = Minecraft.getInstance().font;
     terminalWidgets.clear();
+    inventoryWidgets.clear();
 
     // Tab row.
     addRenderableWidget(
@@ -168,6 +171,39 @@ public class ComputerScreen extends Screen {
                 .bounds(runX, buttonY, bw, BUTTON_H)
                 .build()));
 
+    if (turtle) {
+      int slotW = 64;
+      int slotH = 20;
+      int gridLeft = MARGIN + 8;
+      int gridTop = CONTENT_TOP + 30;
+      for (int slot = 0; slot < 16; slot++) {
+        int index = slot;
+        int x = gridLeft + (slot % 4) * (slotW + 4);
+        int y = gridTop + (slot / 4) * (slotH + 16);
+        inventoryWidgets.add(
+            addRenderableWidget(
+                Button.builder(
+                        Component.literal("Slot " + (slot + 1)),
+                        b -> inventoryAction(TurtleInventoryActionC2S.SELECT, index))
+                    .bounds(x, y, slotW, slotH)
+                    .build()));
+      }
+      inventoryWidgets.add(
+          addRenderableWidget(
+              Button.builder(
+                      Component.literal("Insert held"),
+                      b -> inventoryAction(TurtleInventoryActionC2S.INSERT_HELD, invSelected))
+                  .bounds(MARGIN + 8, this.height - MARGIN - BUTTON_H, 104, BUTTON_H)
+                  .build()));
+      inventoryWidgets.add(
+          addRenderableWidget(
+              Button.builder(
+                      Component.literal("Extract selected"),
+                      b -> inventoryAction(TurtleInventoryActionC2S.EXTRACT, invSelected))
+                  .bounds(MARGIN + 116, this.height - MARGIN - BUTTON_H, 120, BUTTON_H)
+                  .build()));
+    }
+
     applyTab();
     open = this;
   }
@@ -186,8 +222,18 @@ public class ComputerScreen extends Screen {
       widget.visible = terminal;
       widget.active = terminal;
     }
+    for (AbstractWidget widget : inventoryWidgets) {
+      widget.visible = !terminal;
+      widget.active = !terminal;
+    }
     if (terminal) {
       setInitialFocus(this.editor);
+    }
+  }
+
+  private void inventoryAction(int action, int slot) {
+    if (slot >= 0) {
+      ClientPlayNetworking.send(new TurtleInventoryActionC2S(this.pos, action, slot));
     }
   }
 
@@ -284,17 +330,23 @@ public class ComputerScreen extends Screen {
         top + 4,
         TITLE_COLOR);
 
-    int lineHeight = font.lineHeight + 2;
-    int y = top + titleHeight + 4;
-    for (int i = 0; i < invSlots.length; i++) {
+    int gridLeft = left + 8;
+    int gridTop = top + titleHeight + 4;
+    int slotW = 64;
+    int slotH = 36;
+    for (int i = 0; i < 16; i++) {
+      int x = gridLeft + (i % 4) * (slotW + 4);
+      int y = gridTop + (i / 4) * slotH;
       boolean selected = i == invSelected;
-      String content = invSlots[i].isBlank() ? "(empty)" : invSlots[i];
-      String label = (selected ? "> " : "  ") + "slot " + (i + 1) + ": " + content;
-      graphics.text(font, label, left + 6, y, selected ? SELECTED_COLOR : TEXT_COLOR);
-      y += lineHeight;
+      graphics.fill(
+          x - 1, y - 1, x + slotW + 1, y + slotH - 2, selected ? SELECTED_COLOR : BORDER_COLOR);
+      graphics.fill(x, y, x + slotW, y + slotH - 3, PANEL_COLOR);
+      String content = i < invSlots.length && !invSlots[i].isBlank() ? invSlots[i] : "empty";
+      if (content.length() > 10) content = content.substring(0, 10);
+      graphics.text(font, content, x + 3, y + 23, selected ? SELECTED_COLOR : TEXT_COLOR);
     }
     if (invSlots.length == 0) {
-      graphics.text(font, "open this tab to load the turtle's inventory", left + 6, y, TEXT_COLOR);
+      graphics.text(font, "Loading inventory...", left + 6, top + titleHeight + 4, TEXT_COLOR);
     }
   }
 

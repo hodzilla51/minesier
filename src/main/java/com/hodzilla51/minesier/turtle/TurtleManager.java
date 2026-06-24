@@ -79,6 +79,13 @@ public final class TurtleManager {
     brain.start();
   }
 
+  /**
+   * True when the live inventory is owned by a running Turtle program rather than its block entity.
+   */
+  public static boolean isRunning(Level level, BlockPos pos) {
+    return ACTIVE.stream().anyMatch(r -> r.level == level && r.world.pos().equals(pos));
+  }
+
   private static void tickAll() {
     for (Iterator<Running> it = ACTIVE.iterator(); it.hasNext(); ) {
       Running r = it.next();

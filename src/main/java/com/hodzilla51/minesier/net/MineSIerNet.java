@@ -27,6 +27,8 @@ public final class MineSIerNet {
     PayloadTypeRegistry.serverboundPlay().register(ProgramActionC2S.TYPE, ProgramActionC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(RequestInventoryC2S.TYPE, RequestInventoryC2S.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(TurtleInventoryActionC2S.TYPE, TurtleInventoryActionC2S.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TerminalScreenS2C.TYPE, TerminalScreenS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TurtleMoveS2C.TYPE, TurtleMoveS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TurtleTurnS2C.TYPE, TurtleTurnS2C.CODEC);
@@ -56,6 +58,10 @@ public final class MineSIerNet {
           ServerPlayer player = context.player();
           context.server().execute(() -> handleInventoryRequest(player, payload));
         });
+    ServerPlayNetworking.registerGlobalReceiver(
+        TurtleInventoryActionC2S.TYPE,
+        (payload, context) ->
+            context.server().execute(() -> handleInventoryAction(context.player(), payload)));
   }
 
   private static void handleInventoryRequest(ServerPlayer player, RequestInventoryC2S p) {
@@ -67,6 +73,49 @@ public final class MineSIerNet {
     if (!(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)) {
       return;
     }
+    sendInventory(player, turtle);
+  }
+
+  private static void handleInventoryAction(ServerPlayer player, TurtleInventoryActionC2S p) {
+    Level level = player.level();
+    BlockPos pos = p.pos();
+    if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
+        || !(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)
+        || TurtleManager.isRunning(level, pos)) {
+      return;
+    }
+    NonNullList<ItemStack> inventory = turtle.getInventory();
+    int slot = Math.max(0, Math.min(inventory.size() - 1, p.slot()));
+    turtle.selectInventorySlot(slot);
+    if (p.action() == TurtleInventoryActionC2S.INSERT_HELD) {
+      ItemStack held = player.getMainHandItem();
+      ItemStack existing = inventory.get(slot);
+      if (!held.isEmpty()
+          && (existing.isEmpty() || ItemStack.isSameItemSameComponents(existing, held))) {
+        int capacity =
+            existing.isEmpty()
+                ? held.getMaxStackSize()
+                : existing.getMaxStackSize() - existing.getCount();
+        int moved = Math.min(capacity, held.getCount());
+        if (moved > 0) {
+          if (existing.isEmpty()) inventory.set(slot, held.copyWithCount(moved));
+          else existing.grow(moved);
+          held.shrink(moved);
+          turtle.markChanged();
+        }
+      }
+    } else if (p.action() == TurtleInventoryActionC2S.EXTRACT) {
+      ItemStack extracted = inventory.get(slot);
+      if (!extracted.isEmpty()) {
+        inventory.set(slot, ItemStack.EMPTY);
+        if (!player.getInventory().add(extracted)) player.drop(extracted, false);
+        turtle.markChanged();
+      }
+    }
+    sendInventory(player, turtle);
+  }
+
+  private static void sendInventory(ServerPlayer player, TurtleBlockEntity turtle) {
     NonNullList<ItemStack> inventory = turtle.getInventory();
     StringBuilder slots = new StringBuilder();
     for (int i = 0; i < inventory.size(); i++) {
