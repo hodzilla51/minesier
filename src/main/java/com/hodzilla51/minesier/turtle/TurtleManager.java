@@ -64,6 +64,7 @@ public final class TurtleManager {
       network.attach(serverLevel, pos, facing);
     }
     vm.setNetwork(network);
+    vm.setModuleLoader(be::loadProgram);
     TurtleAccess world =
         new TurtleAccess(
             level, pos, facing, be.getFuel(), inventory, be.getSelectedSlot(), network);

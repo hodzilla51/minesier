@@ -3,7 +3,9 @@ package com.hodzilla51.minesier.js;
 import com.hodzilla51.minesier.net.IpPacket;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.ClassShutter;
@@ -56,6 +58,12 @@ public final class JsComputer {
    */
   private final List<Timer> timers = new ArrayList<>();
 
+  /** Resolves a {@code require(name)} to another program's source (from the disk), or null. */
+  private java.util.function.Function<String, String> moduleLoader;
+
+  /** CommonJS module cache, keyed by required name; cleared when a new top-level program runs. */
+  private final Map<String, Object> moduleCache = new HashMap<>();
+
   /** Attaches the turtle this VM controls; call before {@link #run} on a turtle. */
   public void setTurtle(TurtleApi turtle) {
     this.turtle = turtle;
@@ -76,6 +84,11 @@ public final class JsComputer {
     this.monitor = monitor;
   }
 
+  /** Attaches the {@code require(name)} resolver (maps a name to another program's source). */
+  public void setModuleLoader(java.util.function.Function<String, String> moduleLoader) {
+    this.moduleLoader = moduleLoader;
+  }
+
   /**
    * Stops all background work owned by this VM: network receive callbacks and timers. Called before
    * a new terminal program runs, and when the owner is removed.
@@ -85,6 +98,8 @@ public final class JsComputer {
       network.clearReceiveListeners();
     }
     timers.clear();
+    // Fresh module graph per top-level run, so edited library files reload.
+    moduleCache.clear();
   }
 
   /** True while this VM has live timers (so its block entity keeps getting ticked). */
@@ -257,6 +272,8 @@ public final class JsComputer {
         ScriptableObject.putProperty(scope, "every", new TimerRegisterFunction(false));
         ScriptableObject.putProperty(scope, "after", new TimerRegisterFunction(true));
         ScriptableObject.putProperty(scope, "clearTimers", new ClearTimersFunction());
+        // CommonJS-style module loading from other programs on the disk.
+        ScriptableObject.putProperty(scope, "require", new RequireFunction());
       }
       this.sink = out;
       Object result = cx.evaluateString(scope, source, "computer", 1, null);
@@ -730,6 +747,45 @@ public final class JsComputer {
         timers.clear();
       }
       return Undefined.instance;
+    }
+  }
+
+  /**
+   * The {@code require(name)} global: loads another program from the disk as a CommonJS module and
+   * returns its {@code module.exports}. Modules run in their own scope (top-level vars stay local)
+   * but see the same globals; results are cached per run, and the cache is pre-seeded before
+   * evaluation so circular requires resolve to the partial exports instead of looping.
+   */
+  private final class RequireFunction extends BaseFunction {
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      if (moduleLoader == null) {
+        throw new IllegalStateException("require is unavailable here");
+      }
+      if (args.length < 1) {
+        throw new IllegalArgumentException("require(name) needs a module name");
+      }
+      String name = Context.toString(args[0]);
+      if (moduleCache.containsKey(name)) {
+        return moduleCache.get(name);
+      }
+      String source = moduleLoader.apply(name);
+      if (source == null) {
+        throw new IllegalStateException("module not found: " + name);
+      }
+      Scriptable moduleScope = cx.newObject(JsComputer.this.scope);
+      moduleScope.setParentScope(JsComputer.this.scope);
+      ScriptableObject moduleObj = (ScriptableObject) cx.newObject(moduleScope);
+      ScriptableObject exportsObj = (ScriptableObject) cx.newObject(moduleScope);
+      ScriptableObject.putProperty(moduleObj, "exports", exportsObj);
+      ScriptableObject.putProperty(moduleScope, "module", moduleObj);
+      ScriptableObject.putProperty(moduleScope, "exports", exportsObj);
+      ScriptableObject.putProperty(moduleScope, "require", this);
+      moduleCache.put(name, exportsObj); // partial exports for circular requires
+      cx.evaluateString(moduleScope, source, name, 1, null);
+      Object exported = ScriptableObject.getProperty(moduleObj, "exports");
+      moduleCache.put(name, exported);
+      return exported;
     }
   }
 

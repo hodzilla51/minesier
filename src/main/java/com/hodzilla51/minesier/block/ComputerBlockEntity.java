@@ -77,6 +77,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     computer.setNetwork(new ComputerNetworkApi());
     computer.setRedstone(new ComputerRedstoneApi());
     computer.setMonitor(new ComputerMonitorApi());
+    computer.setModuleLoader(this::loadProgram);
   }
 
   /** The analog level this computer emits toward {@code face} (read by the block as a signal). */

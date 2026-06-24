@@ -62,7 +62,30 @@ program, type a name, and press **Save**. Press **Eject**, carry the disk to
 another computer, insert it, and **Load** — your program comes with it.
 
 Program names can use `/` as a folder separator (`lib/crypto`, `net/router`).
-**List** shows the saved programs as an indented folder tree.
+The terminal's left pane shows the saved programs as a folder tree — click a
+file to load it. **List** prints the same tree to the transcript.
+
+### Modules (`require`)
+
+One program can pull in another with CommonJS-style `require`, so you can build a
+`lib/` of reusable code instead of pasting it everywhere.
+
+```js
+// saved as "lib/mathx"
+exports.double = function (n) { return n * 2; };
+module.exports.PI = 3.14159;
+```
+
+```js
+// your main program
+var mathx = require("lib/mathx");
+print(mathx.double(21)); // 42
+```
+
+`require(name)` loads the program saved under that exact name on the disk, runs
+it once with its own `module`/`exports`, and returns `module.exports`. Results
+are cached for the run (re-running your program reloads modules, so edits to a
+library take effect). Circular requires resolve to the partial exports.
 
 ### Turtle API
 
