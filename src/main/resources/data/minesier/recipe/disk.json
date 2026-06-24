@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IRI",
+    "RLR",
+    "IRI"
+  ],
+  "key": {
+    "I": "minecraft:iron_nugget",
+    "L": "minecraft:lapis_lazuli",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "minesier:disk"
+  }
+}

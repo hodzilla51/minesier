@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "III",
+    "ICI",
+    "IHI"
+  ],
+  "key": {
+    "C": "minesier:computer",
+    "H": "minecraft:chest",
+    "I": "minecraft:iron_ingot"
+  },
+  "result": {
+    "id": "minesier:turtle"
+  }
+}

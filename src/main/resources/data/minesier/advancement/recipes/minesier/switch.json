@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_cable": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          { "items": "minesier:cable" }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "recipes": [ "minesier:switch" ]
+  }
+}

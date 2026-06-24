@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_lapis": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          { "items": "minecraft:lapis_lazuli" }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "recipes": [ "minesier:disk" ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_computer": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          { "items": "minesier:computer" }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "recipes": [ "minesier:turtle" ]
+  }
+}

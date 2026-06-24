@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_copper": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          { "items": "minecraft:copper_ingot" }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "recipes": [ "minesier:cable" ]
+  }
+}
