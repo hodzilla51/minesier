@@ -109,6 +109,7 @@ public class TurtleBlock extends BaseEntityBlock {
         && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
       ServerPlayNetworking.send(
           serverPlayer, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
+      com.hodzilla51.minesier.net.MineSIerNet.sendProgramList(serverPlayer, turtle);
     }
     return InteractionResult.SUCCESS;
   }

@@ -6,6 +6,8 @@ import com.hodzilla51.minesier.net.RunCommandC2S;
 import com.hodzilla51.minesier.net.TurtleInventoryActionC2S;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -16,6 +18,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
@@ -30,6 +33,8 @@ public class ComputerScreen extends Screen {
   private static final int CONTENT_TOP = 22; // leaves room for the tab row
   private static final int EDITOR_HEIGHT = 72;
   private static final int BUTTON_H = 20;
+  private static final int PANE_W = 104; // left file-tree pane width
+  private static final int PANE_GAP = 6;
   private static final int TAB_TERMINAL = 0;
   private static final int TAB_INVENTORY = 1;
 
@@ -57,6 +62,22 @@ public class ComputerScreen extends Screen {
   private int invSelected = -1;
   private String[] invSlots = new String[0];
 
+  /** Program names from the inserted disk, flattened into clickable file-tree rows. */
+  private String[] programs = new String[0];
+
+  private final List<FileRow> fileRows = new ArrayList<>();
+  private int paneRowsTop; // y of the first file-tree row (set during render, read on click)
+  private int paneRowHeight;
+
+  /** One line of the file tree: a folder ({@code path == null}) or a clickable file. */
+  private record FileRow(int depth, String label, String path) {}
+
+  /** One folder level while building the tree: sub-folders and files, both sorted. */
+  private static final class Dir {
+    final TreeMap<String, Dir> dirs = new TreeMap<>();
+    final TreeSet<String> files = new TreeSet<>();
+  }
+
   public ComputerScreen(BlockPos pos, String transcript, boolean turtle) {
     super(Component.literal("Computer"));
     this.pos = pos;
@@ -81,6 +102,42 @@ public class ComputerScreen extends Screen {
   public static void loadIntoEditor(String source) {
     if (open != null && open.editor != null) {
       open.editor.setValue(source);
+    }
+  }
+
+  /** Applies the disk's program names to the open screen's file-tree pane. */
+  public static void showPrograms(String names) {
+    if (open != null) {
+      open.programs = names.isEmpty() ? new String[0] : names.split("\n", -1);
+      open.rebuildFileRows();
+    }
+  }
+
+  /** Rebuilds the flattened, clickable file-tree rows from {@link #programs}. */
+  private void rebuildFileRows() {
+    fileRows.clear();
+    Dir root = new Dir();
+    for (String name : programs) {
+      if (name.isBlank()) {
+        continue;
+      }
+      Dir node = root;
+      String[] parts = name.split("/");
+      for (int i = 0; i < parts.length - 1; i++) {
+        node = node.dirs.computeIfAbsent(parts[i], k -> new Dir());
+      }
+      node.files.add(parts[parts.length - 1]);
+    }
+    flattenDir(root, "", 0);
+  }
+
+  private void flattenDir(Dir node, String prefix, int depth) {
+    for (var entry : node.dirs.entrySet()) {
+      fileRows.add(new FileRow(depth, entry.getKey() + "/", null));
+      flattenDir(entry.getValue(), prefix + entry.getKey() + "/", depth + 1);
+    }
+    for (String file : node.files) {
+      fileRows.add(new FileRow(depth, file, prefix + file));
     }
   }
 
@@ -110,13 +167,14 @@ public class ComputerScreen extends Screen {
               .build());
     }
 
-    int editorWidth = this.width - MARGIN * 2;
+    int contentLeft = MARGIN + PANE_W + PANE_GAP;
+    int editorWidth = this.width - contentLeft - MARGIN;
     int buttonY = this.height - MARGIN - BUTTON_H;
     int editorY = buttonY - 4 - EDITOR_HEIGHT;
 
     this.editor =
         MultiLineEditBox.builder()
-            .setX(MARGIN)
+            .setX(contentLeft)
             .setY(editorY)
             .setShowBackground(true)
             .setShowDecorations(true)
@@ -266,6 +324,26 @@ public class ComputerScreen extends Screen {
   }
 
   @Override
+  public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+    if (tab == TAB_TERMINAL && event.button() == 0 && paneRowHeight > 0) {
+      double mx = event.x();
+      double my = event.y();
+      if (mx >= MARGIN && mx <= MARGIN + PANE_W && my >= paneRowsTop) {
+        int idx = (int) ((my - paneRowsTop) / paneRowHeight);
+        if (idx >= 0 && idx < fileRows.size()) {
+          FileRow row = fileRows.get(idx);
+          if (row.path() != null) {
+            this.nameField.setValue(row.path());
+            program(ProgramActionC2S.LOAD);
+            return true;
+          }
+        }
+      }
+    }
+    return super.mouseClicked(event, doubleClick);
+  }
+
+  @Override
   public boolean keyPressed(KeyEvent event) {
     boolean enter = event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER;
     boolean runModifier = (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
@@ -289,10 +367,13 @@ public class ComputerScreen extends Screen {
 
   private void renderTerminal(GuiGraphicsExtractor graphics) {
     Font font = Minecraft.getInstance().font;
-    int left = MARGIN;
+    int editorY = (this.editor != null ? this.editor.getY() : this.height);
+    renderFilePane(graphics, font, editorY + EDITOR_HEIGHT);
+
+    int left = MARGIN + PANE_W + PANE_GAP;
     int right = this.width - MARGIN;
     int top = CONTENT_TOP;
-    int bottom = (this.editor != null ? this.editor.getY() : this.height) - 6;
+    int bottom = editorY - 6;
     int titleHeight = font.lineHeight + 6;
 
     graphics.fill(left - 1, top - 1, right + 1, bottom + 1, BORDER_COLOR);
@@ -309,6 +390,40 @@ public class ComputerScreen extends Screen {
     for (int i = start; i < lines.length; i++) {
       graphics.text(font, lines[i], left + 6, y, TEXT_COLOR);
       y += lineHeight;
+    }
+  }
+
+  /** Draws the left file-tree pane (folders + clickable files) and records its row geometry. */
+  private void renderFilePane(GuiGraphicsExtractor graphics, Font font, int paneBottom) {
+    int left = MARGIN;
+    int right = MARGIN + PANE_W;
+    int top = CONTENT_TOP;
+    int titleHeight = font.lineHeight + 6;
+
+    graphics.fill(left - 1, top - 1, right + 1, paneBottom + 1, BORDER_COLOR);
+    graphics.fill(left, top, right, paneBottom, PANEL_COLOR);
+    graphics.fill(left, top, right, top + titleHeight, TITLEBAR_COLOR);
+    graphics.text(font, "Files", left + 6, top + 4, TITLE_COLOR);
+
+    int lineHeight = font.lineHeight + 1;
+    int rowTop = top + titleHeight + 3;
+    this.paneRowsTop = rowTop;
+    this.paneRowHeight = lineHeight;
+
+    if (fileRows.isEmpty()) {
+      graphics.text(font, "(no programs)", left + 4, rowTop, TEXT_COLOR);
+      return;
+    }
+    int maxChars = Math.max(1, (PANE_W - 8) / 6);
+    int maxRows = Math.max(0, (paneBottom - 3 - rowTop) / lineHeight);
+    for (int i = 0; i < fileRows.size() && i < maxRows; i++) {
+      FileRow row = fileRows.get(i);
+      String label = "  ".repeat(row.depth()) + row.label();
+      if (label.length() > maxChars) {
+        label = label.substring(0, maxChars);
+      }
+      int color = row.path() == null ? TITLE_COLOR : TEXT_COLOR;
+      graphics.text(font, label, left + 4, rowTop + i * lineHeight, color);
     }
   }
 

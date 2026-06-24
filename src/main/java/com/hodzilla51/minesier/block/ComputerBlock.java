@@ -1,6 +1,7 @@
 package com.hodzilla51.minesier.block;
 
 import com.hodzilla51.minesier.ModContent;
+import com.hodzilla51.minesier.net.MineSIerNet;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.mojang.serialization.MapCodec;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -89,6 +90,9 @@ public class ComputerBlock extends BaseEntityBlock {
         stack.shrink(1);
         // Slotting a disk boots its `startup` program (if any), so a daemon can auto-run.
         computer.bootStartup();
+        if (player instanceof ServerPlayer serverPlayer) {
+          MineSIerNet.sendProgramList(serverPlayer, computer);
+        }
       }
       return InteractionResult.SUCCESS;
     }
@@ -104,6 +108,7 @@ public class ComputerBlock extends BaseEntityBlock {
         && level.getBlockEntity(pos) instanceof ComputerBlockEntity computer) {
       ServerPlayNetworking.send(
           serverPlayer, new TerminalScreenS2C(pos, computer.getTranscript(), true));
+      MineSIerNet.sendProgramList(serverPlayer, computer);
     }
     return InteractionResult.SUCCESS;
   }

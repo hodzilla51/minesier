@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.client;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.InventoryS2C;
 import com.hodzilla51.minesier.net.LoadProgramS2C;
+import com.hodzilla51.minesier.net.ProgramListS2C;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
 import com.hodzilla51.minesier.net.TurtleTurnS2C;
@@ -90,6 +91,12 @@ public class MineSIerClient implements ClientModInitializer {
         LoadProgramS2C.TYPE,
         (payload, context) ->
             context.client().execute(() -> ComputerScreen.loadIntoEditor(payload.source())));
+
+    // Server sends the disk's program names for the file-tree pane.
+    ClientPlayNetworking.registerGlobalReceiver(
+        ProgramListS2C.TYPE,
+        (payload, context) ->
+            context.client().execute(() -> ComputerScreen.showPrograms(payload.names())));
 
     // Server replies with a turtle inventory snapshot for the read-only viewer.
     ClientPlayNetworking.registerGlobalReceiver(

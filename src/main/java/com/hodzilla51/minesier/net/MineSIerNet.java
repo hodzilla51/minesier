@@ -36,7 +36,13 @@ public final class MineSIerNet {
     PayloadTypeRegistry.clientboundPlay().register(TurtleTurnS2C.TYPE, TurtleTurnS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(TurtleVisualS2C.TYPE, TurtleVisualS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(LoadProgramS2C.TYPE, LoadProgramS2C.CODEC);
+    PayloadTypeRegistry.clientboundPlay().register(ProgramListS2C.TYPE, ProgramListS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(InventoryS2C.TYPE, InventoryS2C.CODEC);
+  }
+
+  /** Pushes the disk's program names to the player's open terminal (for the file tree pane). */
+  public static void sendProgramList(ServerPlayer player, ProgramStore store) {
+    ServerPlayNetworking.send(player, new ProgramListS2C(String.join("\n", store.programNames())));
   }
 
   /** Server-authoritative command execution. */
@@ -156,6 +162,7 @@ public final class MineSIerNet {
       case ProgramActionC2S.SAVE -> {
         store.saveProgram(p.name(), p.source());
         note(player, pos, store, "saved: " + p.name());
+        sendProgramList(player, store);
       }
       case ProgramActionC2S.LOAD -> {
         String source = store.loadProgram(p.name());
@@ -170,6 +177,7 @@ public final class MineSIerNet {
       case ProgramActionC2S.DELETE -> {
         store.deleteProgram(p.name());
         note(player, pos, store, "deleted: " + p.name());
+        sendProgramList(player, store);
       }
       default -> {}
     }
@@ -184,6 +192,7 @@ public final class MineSIerNet {
     store.setDisk(ItemStack.EMPTY);
     player.drop(disk, false);
     note(player, pos, store, "ejected disk");
+    sendProgramList(player, store);
   }
 
   /** Sends a transient status line appended to the current transcript (not persisted). */
