@@ -9,16 +9,19 @@ import net.minecraft.resources.Identifier;
 
 /** Client -> server: run {@code command} on the computer at {@code pos}. */
 public record RunCommandC2S(BlockPos pos, String command) implements CustomPacketPayload {
-	public static final Type<RunCommandC2S> TYPE =
-		new Type<>(Identifier.fromNamespaceAndPath("minesier", "run_command"));
+  public static final Type<RunCommandC2S> TYPE =
+      new Type<>(Identifier.fromNamespaceAndPath("minesier", "run_command"));
 
-	public static final StreamCodec<RegistryFriendlyByteBuf, RunCommandC2S> CODEC = StreamCodec.composite(
-		BlockPos.STREAM_CODEC, RunCommandC2S::pos,
-		ByteBufCodecs.STRING_UTF8, RunCommandC2S::command,
-		RunCommandC2S::new);
+  public static final StreamCodec<RegistryFriendlyByteBuf, RunCommandC2S> CODEC =
+      StreamCodec.composite(
+          BlockPos.STREAM_CODEC,
+          RunCommandC2S::pos,
+          ByteBufCodecs.STRING_UTF8,
+          RunCommandC2S::command,
+          RunCommandC2S::new);
 
-	@Override
-	public Type<? extends CustomPacketPayload> type() {
-		return TYPE;
-	}
+  @Override
+  public Type<? extends CustomPacketPayload> type() {
+    return TYPE;
+  }
 }

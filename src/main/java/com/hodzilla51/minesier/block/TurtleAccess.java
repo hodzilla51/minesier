@@ -4,9 +4,7 @@ import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.TurtleApi;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
 import com.hodzilla51.minesier.net.TurtleTurnS2C;
-
 import java.util.List;
-
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -23,221 +21,230 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Server-authoritative implementation of {@link TurtleApi}: moving is the CC-style
- * "block hop" — place the turtle block in the target cell and clear the old one.
- * Tracks its own mutable {@code pos}/{@code facing}/{@code fuel} so a program can
- * chain actions within one run even as the underlying block entity is replaced.
+ * Server-authoritative implementation of {@link TurtleApi}: moving is the CC-style "block hop" —
+ * place the turtle block in the target cell and clear the old one. Tracks its own mutable {@code
+ * pos}/{@code facing}/{@code fuel} so a program can chain actions within one run even as the
+ * underlying block entity is replaced.
  */
 public class TurtleAccess implements TurtleApi {
-	private final Level level;
-	private BlockPos pos;
-	private Direction facing;
-	private int fuel;
-	private final NonNullList<ItemStack> inventory;
-	private int selectedSlot;
+  private final Level level;
+  private BlockPos pos;
+  private Direction facing;
+  private int fuel;
+  private final NonNullList<ItemStack> inventory;
+  private int selectedSlot;
 
-	public TurtleAccess(Level level, BlockPos pos, Direction facing, int fuel, NonNullList<ItemStack> inventory,
-			int selectedSlot) {
-		this.level = level;
-		this.pos = pos;
-		this.facing = facing;
-		this.fuel = fuel;
-		this.inventory = inventory;
-		this.selectedSlot = selectedSlot;
-	}
+  public TurtleAccess(
+      Level level,
+      BlockPos pos,
+      Direction facing,
+      int fuel,
+      NonNullList<ItemStack> inventory,
+      int selectedSlot) {
+    this.level = level;
+    this.pos = pos;
+    this.facing = facing;
+    this.fuel = fuel;
+    this.inventory = inventory;
+    this.selectedSlot = selectedSlot;
+  }
 
-	public BlockPos pos() {
-		return pos;
-	}
+  public BlockPos pos() {
+    return pos;
+  }
 
-	public Direction facing() {
-		return facing;
-	}
+  public Direction facing() {
+    return facing;
+  }
 
-	public int fuel() {
-		return fuel;
-	}
+  public int fuel() {
+    return fuel;
+  }
 
-	public NonNullList<ItemStack> inventory() {
-		return inventory;
-	}
+  public NonNullList<ItemStack> inventory() {
+    return inventory;
+  }
 
-	public int selectedSlot() {
-		return selectedSlot;
-	}
+  public int selectedSlot() {
+    return selectedSlot;
+  }
 
-	@Override
-	public boolean forward() {
-		return move(facing);
-	}
+  @Override
+  public boolean forward() {
+    return move(facing);
+  }
 
-	@Override
-	public boolean back() {
-		return move(facing.getOpposite());
-	}
+  @Override
+  public boolean back() {
+    return move(facing.getOpposite());
+  }
 
-	@Override
-	public boolean turnLeft() {
-		facing = facing.getCounterClockWise();
-		applyFacing(false);
-		return true;
-	}
+  @Override
+  public boolean turnLeft() {
+    facing = facing.getCounterClockWise();
+    applyFacing(false);
+    return true;
+  }
 
-	@Override
-	public boolean turnRight() {
-		facing = facing.getClockWise();
-		applyFacing(true);
-		return true;
-	}
+  @Override
+  public boolean turnRight() {
+    facing = facing.getClockWise();
+    applyFacing(true);
+    return true;
+  }
 
-	/** Pushes the current facing into the block's state (syncs to clients) and animates the turn. */
-	private void applyFacing(boolean clockwise) {
-		BlockState here = level.getBlockState(pos);
-		if (here.is(ModContent.TURTLE_BLOCK)) {
-			level.setBlock(pos, here.setValue(TurtleBlock.FACING, facing), 3);
-		}
-		if (level instanceof ServerLevel serverLevel) {
-			for (ServerPlayer player : PlayerLookup.tracking(serverLevel, pos)) {
-				ServerPlayNetworking.send(player, new TurtleTurnS2C(pos, clockwise));
-			}
-		}
-	}
+  /** Pushes the current facing into the block's state (syncs to clients) and animates the turn. */
+  private void applyFacing(boolean clockwise) {
+    BlockState here = level.getBlockState(pos);
+    if (here.is(ModContent.TURTLE_BLOCK)) {
+      level.setBlock(pos, here.setValue(TurtleBlock.FACING, facing), 3);
+    }
+    if (level instanceof ServerLevel serverLevel) {
+      for (ServerPlayer player : PlayerLookup.tracking(serverLevel, pos)) {
+        ServerPlayNetworking.send(player, new TurtleTurnS2C(pos, clockwise));
+      }
+    }
+  }
 
-	@Override
-	public boolean dig() {
-		BlockPos target = pos.relative(facing);
-		BlockState state = level.getBlockState(target);
-		if (state.canBeReplaced()) {
-			return false; // nothing solid to dig
-		}
-		// Collect the block's drops into the turtle's inventory (overflow pops into the world).
-		if (level instanceof ServerLevel serverLevel) {
-			List<ItemStack> drops = Block.getDrops(state, serverLevel, target, level.getBlockEntity(target));
-			for (ItemStack drop : drops) {
-				ItemStack leftover = insert(drop);
-				if (!leftover.isEmpty()) {
-					Block.popResource(level, pos, leftover);
-				}
-			}
-		}
-		return level.destroyBlock(target, false, null, 512); // false: we already took the drops
-	}
+  @Override
+  public boolean dig() {
+    BlockPos target = pos.relative(facing);
+    BlockState state = level.getBlockState(target);
+    if (state.canBeReplaced()) {
+      return false; // nothing solid to dig
+    }
+    // Collect the block's drops into the turtle's inventory (overflow pops into the world).
+    if (level instanceof ServerLevel serverLevel) {
+      List<ItemStack> drops =
+          Block.getDrops(state, serverLevel, target, level.getBlockEntity(target));
+      for (ItemStack drop : drops) {
+        ItemStack leftover = insert(drop);
+        if (!leftover.isEmpty()) {
+          Block.popResource(level, pos, leftover);
+        }
+      }
+    }
+    return level.destroyBlock(target, false, null, 512); // false: we already took the drops
+  }
 
-	@Override
-	public boolean place(String blockId) {
-		Identifier id = Identifier.tryParse(blockId);
-		if (id == null) {
-			return false;
-		}
-		Block block = BuiltInRegistries.BLOCK.getValue(id);
-		if (!BuiltInRegistries.BLOCK.getKey(block).equals(id)) {
-			return false; // unknown block id (defaulted to air)
-		}
-		BlockPos target = pos.relative(facing);
-		if (!level.getBlockState(target).canBeReplaced()) {
-			return false; // occupied
-		}
-		return level.setBlock(target, block.defaultBlockState(), 3);
-	}
+  @Override
+  public boolean place(String blockId) {
+    Identifier id = Identifier.tryParse(blockId);
+    if (id == null) {
+      return false;
+    }
+    Block block = BuiltInRegistries.BLOCK.getValue(id);
+    if (!BuiltInRegistries.BLOCK.getKey(block).equals(id)) {
+      return false; // unknown block id (defaulted to air)
+    }
+    BlockPos target = pos.relative(facing);
+    if (!level.getBlockState(target).canBeReplaced()) {
+      return false; // occupied
+    }
+    return level.setBlock(target, block.defaultBlockState(), 3);
+  }
 
-	@Override
-	public boolean placeSelected() {
-		ItemStack stack = inventory.get(selectedSlot);
-		if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
-			return false;
-		}
-		BlockPos target = pos.relative(facing);
-		if (!level.getBlockState(target).canBeReplaced()) {
-			return false; // occupied
-		}
-		if (level.setBlock(target, blockItem.getBlock().defaultBlockState(), 3)) {
-			stack.shrink(1);
-			return true;
-		}
-		return false;
-	}
+  @Override
+  public boolean placeSelected() {
+    ItemStack stack = inventory.get(selectedSlot);
+    if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
+      return false;
+    }
+    BlockPos target = pos.relative(facing);
+    if (!level.getBlockState(target).canBeReplaced()) {
+      return false; // occupied
+    }
+    if (level.setBlock(target, blockItem.getBlock().defaultBlockState(), 3)) {
+      stack.shrink(1);
+      return true;
+    }
+    return false;
+  }
 
-	@Override
-	public void select(int slot) {
-		this.selectedSlot = Math.max(0, Math.min(inventory.size() - 1, slot - 1));
-	}
+  @Override
+  public void select(int slot) {
+    this.selectedSlot = Math.max(0, Math.min(inventory.size() - 1, slot - 1));
+  }
 
-	@Override
-	public int getSelectedSlot() {
-		return selectedSlot + 1;
-	}
+  @Override
+  public int getSelectedSlot() {
+    return selectedSlot + 1;
+  }
 
-	@Override
-	public int getItemCount(int slot) {
-		int index = slot <= 0 ? selectedSlot : Math.min(inventory.size() - 1, slot - 1);
-		return inventory.get(index).getCount();
-	}
+  @Override
+  public int getItemCount(int slot) {
+    int index = slot <= 0 ? selectedSlot : Math.min(inventory.size() - 1, slot - 1);
+    return inventory.get(index).getCount();
+  }
 
-	/** Merges {@code stack} into existing matching slots then empty slots; returns the leftover. */
-	private ItemStack insert(ItemStack stack) {
-		for (int i = 0; i < inventory.size() && !stack.isEmpty(); i++) {
-			ItemStack slot = inventory.get(i);
-			if (!slot.isEmpty() && ItemStack.isSameItemSameComponents(slot, stack)) {
-				int space = slot.getMaxStackSize() - slot.getCount();
-				int moved = Math.min(space, stack.getCount());
-				slot.grow(moved);
-				stack.shrink(moved);
-			}
-		}
-		for (int i = 0; i < inventory.size() && !stack.isEmpty(); i++) {
-			if (inventory.get(i).isEmpty()) {
-				inventory.set(i, stack.copy());
-				stack.setCount(0);
-			}
-		}
-		return stack;
-	}
+  /** Merges {@code stack} into existing matching slots then empty slots; returns the leftover. */
+  private ItemStack insert(ItemStack stack) {
+    for (int i = 0; i < inventory.size() && !stack.isEmpty(); i++) {
+      ItemStack slot = inventory.get(i);
+      if (!slot.isEmpty() && ItemStack.isSameItemSameComponents(slot, stack)) {
+        int space = slot.getMaxStackSize() - slot.getCount();
+        int moved = Math.min(space, stack.getCount());
+        slot.grow(moved);
+        stack.shrink(moved);
+      }
+    }
+    for (int i = 0; i < inventory.size() && !stack.isEmpty(); i++) {
+      if (inventory.get(i).isEmpty()) {
+        inventory.set(i, stack.copy());
+        stack.setCount(0);
+      }
+    }
+    return stack;
+  }
 
-	@Override
-	public boolean detect() {
-		return !level.getBlockState(pos.relative(facing)).canBeReplaced();
-	}
+  @Override
+  public boolean detect() {
+    return !level.getBlockState(pos.relative(facing)).canBeReplaced();
+  }
 
-	@Override
-	public String inspect() {
-		BlockState state = level.getBlockState(pos.relative(facing));
-		if (state.isAir()) {
-			return "";
-		}
-		return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-	}
+  @Override
+  public String inspect() {
+    BlockState state = level.getBlockState(pos.relative(facing));
+    if (state.isAir()) {
+      return "";
+    }
+    return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+  }
 
-	@Override
-	public int getFuelLevel() {
-		return fuel;
-	}
+  @Override
+  public int getFuelLevel() {
+    return fuel;
+  }
 
-	@Override
-	public void refuel(int amount) {
-		if (amount > 0) {
-			fuel += amount;
-		}
-	}
+  @Override
+  public void refuel(int amount) {
+    if (amount > 0) {
+      fuel += amount;
+    }
+  }
 
-	private boolean move(Direction direction) {
-		if (fuel <= 0) {
-			return false; // out of fuel
-		}
-		BlockPos target = pos.relative(direction);
-		if (!level.getBlockState(target).canBeReplaced()) {
-			return false; // blocked
-		}
-		level.setBlock(target, ModContent.TURTLE_BLOCK.defaultBlockState().setValue(TurtleBlock.FACING, facing), 3);
-		level.removeBlock(pos, false);
-		// Tell nearby clients to slide the turtle in from where it came (smooth animation).
-		if (level instanceof ServerLevel serverLevel) {
-			int fromDir = direction.getOpposite().ordinal();
-			for (ServerPlayer player : PlayerLookup.tracking(serverLevel, target)) {
-				ServerPlayNetworking.send(player, new TurtleMoveS2C(target, fromDir));
-			}
-		}
-		pos = target;
-		fuel--;
-		return true;
-	}
+  private boolean move(Direction direction) {
+    if (fuel <= 0) {
+      return false; // out of fuel
+    }
+    BlockPos target = pos.relative(direction);
+    if (!level.getBlockState(target).canBeReplaced()) {
+      return false; // blocked
+    }
+    level.setBlock(
+        target,
+        ModContent.TURTLE_BLOCK.defaultBlockState().setValue(TurtleBlock.FACING, facing),
+        3);
+    level.removeBlock(pos, false);
+    // Tell nearby clients to slide the turtle in from where it came (smooth animation).
+    if (level instanceof ServerLevel serverLevel) {
+      int fromDir = direction.getOpposite().ordinal();
+      for (ServerPlayer player : PlayerLookup.tracking(serverLevel, target)) {
+        ServerPlayNetworking.send(player, new TurtleMoveS2C(target, fromDir));
+      }
+    }
+    pos = target;
+    fuel--;
+    return true;
+  }
 }

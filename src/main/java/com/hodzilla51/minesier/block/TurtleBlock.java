@@ -3,7 +3,6 @@ package com.hodzilla51.minesier.block;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.mojang.serialization.MapCodec;
-
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -26,78 +25,88 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 
 /**
- * A placeable programmable turtle. Right-click opens the same terminal as the
- * computer; commands run server-side and can move the turtle through the world.
+ * A placeable programmable turtle. Right-click opens the same terminal as the computer; commands
+ * run server-side and can move the turtle through the world.
  */
 public class TurtleBlock extends BaseEntityBlock {
-	public static final MapCodec<TurtleBlock> CODEC = simpleCodec(TurtleBlock::new);
-	/** The direction the turtle faces = the way "forward" goes. */
-	public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
+  public static final MapCodec<TurtleBlock> CODEC = simpleCodec(TurtleBlock::new);
 
-	public TurtleBlock(Properties properties) {
-		super(properties);
-		registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH));
-	}
+  /** The direction the turtle faces = the way "forward" goes. */
+  public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
 
-	@Override
-	protected MapCodec<TurtleBlock> codec() {
-		return CODEC;
-	}
+  public TurtleBlock(Properties properties) {
+    super(properties);
+    registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH));
+  }
 
-	@Override
-	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-		builder.add(FACING);
-	}
+  @Override
+  protected MapCodec<TurtleBlock> codec() {
+    return CODEC;
+  }
 
-	@Override
-	public BlockState getStateForPlacement(BlockPlaceContext context) {
-		// Forward = the direction the placer is looking.
-		return defaultBlockState().setValue(FACING, context.getHorizontalDirection());
-	}
+  @Override
+  protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+    builder.add(FACING);
+  }
 
-	@Override
-	protected RenderShape getRenderShape(BlockState state) {
-		// The block entity renderer draws the turtle (so it can slide between blocks).
-		return RenderShape.INVISIBLE;
-	}
+  @Override
+  public BlockState getStateForPlacement(BlockPlaceContext context) {
+    // Forward = the direction the placer is looking.
+    return defaultBlockState().setValue(FACING, context.getHorizontalDirection());
+  }
 
-	@Override
-	public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-		return new TurtleBlockEntity(pos, state);
-	}
+  @Override
+  protected RenderShape getRenderShape(BlockState state) {
+    // The block entity renderer draws the turtle (so it can slide between blocks).
+    return RenderShape.INVISIBLE;
+  }
 
-	@Override
-	public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
-		// Spill the turtle's inventory when a player breaks it (block hops never call this).
-		if (!level.isClientSide() && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
-			Containers.dropContents(level, pos, turtle.getInventory());
-		}
-		return super.playerWillDestroy(level, pos, state, player);
-	}
+  @Override
+  public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+    return new TurtleBlockEntity(pos, state);
+  }
 
-	@Override
-	protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player,
-			InteractionHand hand, BlockHitResult hit) {
-		// Insert a disk held in hand into an empty disk slot.
-		if (stack.is(ModContent.DISK) && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle
-				&& turtle.getDisk().isEmpty()) {
-			if (!level.isClientSide()) {
-				turtle.setDisk(stack.copyWithCount(1));
-				stack.shrink(1);
-			}
-			return InteractionResult.SUCCESS;
-		}
-		// Not a disk — fall through so the empty-hand action (open terminal) still runs.
-		return InteractionResult.TRY_WITH_EMPTY_HAND;
-	}
+  @Override
+  public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+    // Spill the turtle's inventory when a player breaks it (block hops never call this).
+    if (!level.isClientSide() && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
+      Containers.dropContents(level, pos, turtle.getInventory());
+    }
+    return super.playerWillDestroy(level, pos, state, player);
+  }
 
-	@Override
-	protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
-			BlockHitResult hit) {
-		if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer
-				&& level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
-			ServerPlayNetworking.send(serverPlayer, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
-		}
-		return InteractionResult.SUCCESS;
-	}
+  @Override
+  protected InteractionResult useItemOn(
+      ItemStack stack,
+      BlockState state,
+      Level level,
+      BlockPos pos,
+      Player player,
+      InteractionHand hand,
+      BlockHitResult hit) {
+    // Insert a disk held in hand into an empty disk slot.
+    if (stack.is(ModContent.DISK)
+        && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle
+        && turtle.getDisk().isEmpty()) {
+      if (!level.isClientSide()) {
+        turtle.setDisk(stack.copyWithCount(1));
+        stack.shrink(1);
+      }
+      return InteractionResult.SUCCESS;
+    }
+    // Not a disk — fall through so the empty-hand action (open terminal) still runs.
+    return InteractionResult.TRY_WITH_EMPTY_HAND;
+  }
+
+  @Override
+  protected InteractionResult useWithoutItem(
+      BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+    if (!level.isClientSide()
+        && player instanceof ServerPlayer serverPlayer
+        && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
+      ServerPlayNetworking.send(
+          serverPlayer, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
+    }
+    return InteractionResult.SUCCESS;
+  }
 }

@@ -2,7 +2,6 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 	id 'com.diffplug.spotless' version '8.1.0'
-	id 'com.palantir.java-format-spotless' version '2.93.0'
 }
 
 version = project.mod_version
@@ -72,11 +71,15 @@ java {
 	targetCompatibility = JavaVersion.VERSION_25
 }
 
-// Spotless applies Palantir Java Format through the plugin declared above.
-// Run ./gradlew spotlessApply to rewrite sources and ./gradlew spotlessCheck in CI.
-tasks.named("check") {
-	dependsOn("spotlessCheck")
+spotless {
+	java {
+		googleJavaFormat('1.35.0')
+	}
 }
+
+// Spotless applies Google Java Format through the configuration above.
+// Run ./gradlew spotlessApply to rewrite sources and ./gradlew spotlessCheck to validate them.
+// CI enforcement is enabled after the one-time repository-wide formatting baseline.
 
 jar {
 	def projectName = project.name
