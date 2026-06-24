@@ -9,6 +9,8 @@ import com.hodzilla51.minesier.block.SwitchBlock;
 import com.hodzilla51.minesier.block.SwitchBlockEntity;
 import com.hodzilla51.minesier.block.TurtleBlock;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
+import com.hodzilla51.minesier.block.WirelessModemBlock;
+import com.hodzilla51.minesier.block.WirelessModemBlockEntity;
 import com.hodzilla51.minesier.item.DiskContents;
 
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
@@ -37,11 +39,13 @@ public final class ModContent {
 	public static final Identifier CABLE_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "cable");
 	public static final Identifier SWITCH_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "switch");
 	public static final Identifier TURTLE_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "turtle");
+	public static final Identifier WIRELESS_MODEM_ID = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "wireless_modem");
 
 	public static final Block COMPUTER_BLOCK = registerBlock(COMPUTER_ID, ComputerBlock::new);
 	public static final Block CABLE_BLOCK = registerBlock(CABLE_ID, CableBlock::new);
 	public static final Block SWITCH_BLOCK = registerBlock(SWITCH_ID, SwitchBlock::new);
 	public static final Block TURTLE_BLOCK = registerBlock(TURTLE_ID, TurtleBlock::new);
+	public static final Block WIRELESS_MODEM_BLOCK = registerBlock(WIRELESS_MODEM_ID, WirelessModemBlock::new);
 
 	public static final BlockEntityType<ComputerBlockEntity> COMPUTER_BLOCK_ENTITY =
 		registerBlockEntity(COMPUTER_ID, ComputerBlockEntity::new, COMPUTER_BLOCK);
@@ -49,6 +53,8 @@ public final class ModContent {
 		registerBlockEntity(SWITCH_ID, SwitchBlockEntity::new, SWITCH_BLOCK);
 	public static final BlockEntityType<TurtleBlockEntity> TURTLE_BLOCK_ENTITY =
 		registerBlockEntity(TURTLE_ID, TurtleBlockEntity::new, TURTLE_BLOCK);
+	public static final BlockEntityType<WirelessModemBlockEntity> WIRELESS_MODEM_BLOCK_ENTITY =
+		registerBlockEntity(WIRELESS_MODEM_ID, WirelessModemBlockEntity::new, WIRELESS_MODEM_BLOCK);
 
 	/** Data component carrying a disk's program files (travels with the disk item). */
 	public static final DataComponentType<DiskContents> DISK_CONTENTS = Registry.register(
@@ -74,6 +80,7 @@ public final class ModContent {
 				output.accept(COMPUTER_BLOCK);
 				output.accept(CABLE_BLOCK);
 				output.accept(SWITCH_BLOCK);
+				output.accept(WIRELESS_MODEM_BLOCK);
 				output.accept(TURTLE_BLOCK);
 				output.accept(DISK);
 			})

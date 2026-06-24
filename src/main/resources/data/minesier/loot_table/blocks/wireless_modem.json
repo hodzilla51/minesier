@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1.0,
+      "conditions": [
+        { "condition": "minecraft:survives_explosion" }
+      ],
+      "entries": [
+        { "type": "minecraft:item", "name": "minesier:wireless_modem" }
+      ]
+    }
+  ],
+  "random_sequence": "minesier:blocks/wireless_modem"
+}

@@ -14,6 +14,7 @@ import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.NetworkManager;
+import com.hodzilla51.minesier.net.WirelessNetwork;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -87,6 +88,16 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 	private NetworkFrame receiveFrame(Direction face) {
 		NicState nic = nics.get(face);
 		return nic == null ? null : nic.inbox.pollFirst();
+	}
+
+	/** Emits a frame on a face: wireless if a modem is attached there, otherwise the cable segment. */
+	private boolean emit(ServerLevel serverLevel, Direction face, NetworkFrame frame) {
+		BlockPos adjacent = worldPosition.relative(face);
+		if (serverLevel.getBlockState(adjacent).is(ModContent.WIRELESS_MODEM_BLOCK)) {
+			WirelessNetwork.deliver(serverLevel, adjacent, frame);
+			return true;
+		}
+		return CableNetwork.send(serverLevel, worldPosition, face, frame);
 	}
 
 	private Direction legacyFace() {
@@ -226,7 +237,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 					|| destination.isBlank() || data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
 				return false;
 			}
-			return CableNetwork.send(serverLevel, worldPosition, face, new NetworkFrame(addressFor(face), destination, data));
+			return emit(serverLevel, face, new NetworkFrame(addressFor(face), destination, data));
 		}
 
 		@Override
@@ -247,7 +258,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 			if (forwarded == null) {
 				return false;
 			}
-			return CableNetwork.send(serverLevel, worldPosition, face, forwarded);
+			return emit(serverLevel, face, forwarded);
 		}
 
 		@Override

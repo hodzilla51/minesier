@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "minesier:block/wireless_modem" }
+  }
+}
