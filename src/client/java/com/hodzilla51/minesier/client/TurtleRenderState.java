@@ -1,13 +1,13 @@
 package com.hodzilla51.minesier.client;
 
-import net.minecraft.client.renderer.block.BlockModelRenderState;
+import net.minecraft.client.renderer.block.MovingBlockRenderState;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.core.Direction;
 
 /** Per-frame render data for a turtle: the block model to draw + its slide offset. */
 public class TurtleRenderState extends BlockEntityRenderState {
-  public final BlockModelRenderState model = new BlockModelRenderState();
+  public MovingBlockRenderState moving;
   public float offsetX;
   public float offsetY;
   public float offsetZ;

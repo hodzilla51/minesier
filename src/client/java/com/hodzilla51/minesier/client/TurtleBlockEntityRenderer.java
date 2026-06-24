@@ -7,9 +7,9 @@ import com.hodzilla51.minesier.turtle.TurtleBrain;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.block.BlockModelResolver;
-import net.minecraft.client.renderer.block.model.BlockDisplayContext;
+import net.minecraft.client.renderer.block.MovingBlockRenderState;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
@@ -29,8 +29,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Draws the turtle (the block itself is INVISIBLE) so it can slide smoothly between cells during a
- * move. Renders the turtle's block model through the normal block-model path, translated by the
- * current slide offset interpolated from {@link TurtleAnimations}.
+ * move. Renders the turtle's block model through the moving-block path, translated by the current
+ * slide offset interpolated from {@link TurtleAnimations}.
  */
 public class TurtleBlockEntityRenderer
     implements BlockEntityRenderer<TurtleBlockEntity, TurtleRenderState> {
@@ -40,12 +40,10 @@ public class TurtleBlockEntityRenderer
 
   private final Font font;
   private final ItemModelResolver itemModelResolver;
-  private final BlockModelResolver blockModelResolver;
 
   public TurtleBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
     this.font = context.font();
     this.itemModelResolver = context.itemModelResolver();
-    this.blockModelResolver = context.blockModelResolver();
   }
 
   @Override
@@ -64,8 +62,7 @@ public class TurtleBlockEntityRenderer
 
     Level level = be.getLevel();
     BlockPos pos = be.getBlockPos();
-    state.model.clear();
-    blockModelResolver.update(state.model, be.getBlockState(), BlockDisplayContext.create());
+    state.moving = createMovingBlock(pos, be.getBlockState(), level);
     state.facing = be.getBlockState().getValue(TurtleBlock.FACING);
     long gameTime = level.getGameTime();
 
@@ -131,9 +128,8 @@ public class TurtleBlockEntityRenderer
     if (state.tiltZDeg != 0f) {
       poseStack.rotateAround(Axis.ZP.rotationDegrees(state.tiltZDeg), 0.5f, 0.5f, 0.5f);
     }
-    // The final argument is the model tint multiplier. Zero blacks out the block model;
-    // opaque white preserves its baked texture colors.
-    state.model.submit(poseStack, collector, state.lightCoords, 0, 0xFFFFFFFF);
+    // The final argument is an optional outline color, not a light coordinate.
+    collector.submitMovingBlock(poseStack, state.moving, 0);
     submitScreen(state, poseStack, collector);
     poseStack.popPose();
   }
@@ -264,5 +260,19 @@ public class TurtleBlockEntityRenderer
       return ".";
     }
     return sending ? "@" : "[]";
+  }
+
+  private static MovingBlockRenderState createMovingBlock(
+      BlockPos pos, net.minecraft.world.level.block.state.BlockState blockState, Level level) {
+    MovingBlockRenderState moving = new MovingBlockRenderState();
+    moving.randomSeedPos = pos;
+    moving.blockPos = pos;
+    moving.blockState = blockState;
+    moving.biome = level.getBiome(pos);
+    if (level instanceof ClientLevel clientLevel) {
+      moving.cardinalLighting = clientLevel.cardinalLighting();
+      moving.lightEngine = clientLevel.getLightEngine();
+    }
+    return moving;
   }
 }
