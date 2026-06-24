@@ -93,6 +93,50 @@ redstone.getSides();               // ["front","back","left","right","up","down"
 Outputs persist with the world and keep emitting after the program ends, so a
 computer can latch a lamp, door, or piston on until told otherwise.
 
+### Monitors
+
+Place a Monitor block next to a computer and write to it from code. The monitor
+is addressed by side, like the redstone and network interfaces.
+
+```js
+var screen = monitor.at("right");  // null if there's no monitor on that face
+screen.write("hello\nworld");      // append lines (oldest scroll off the top)
+screen.setLine(1, "header");       // set one row (1-based)
+screen.setText("a\nb\nc");         // replace everything
+screen.clear();
+screen.rows();                     // 17
+screen.columns();                  // 26
+```
+
+The text is drawn on the monitor's screen face in the world, so you can read it
+without opening any GUI.
+
+### Resident execution (daemons)
+
+A program can keep running after you close the terminal by registering timers.
+This makes a computer a little always-on server: poll inputs, drive outputs,
+answer the network.
+
+```js
+every(20, function () {            // run every 20 ticks (1 second)
+  var on = redstone.getInput("back");
+  monitor.at("front").setLine(1, on ? "RUNNING" : "idle");
+});
+
+after(100, function () {          // run once, 5 seconds from now
+  print("warmed up");
+});
+```
+
+`every(ticks, fn)` repeats; `after(ticks, fn)` fires once. Each callback runs on
+the server tick within a 100,000-instruction safety budget, so a daemon can't
+freeze the server. Re-running a program (or calling `clearTimers()`) stops the
+old timers; removing the computer stops everything. Output printed by a callback
+is appended to the transcript and shown next time you open the terminal.
+
+Timers run only while the computer's chunk is loaded, and do not yet restart
+automatically after a world reload (planned).
+
 ### Wired networking (in development)
 
 See the [networking specification](docs/networking.md) for the canonical API,
@@ -231,7 +275,9 @@ Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
 - ✅ JS engine, computer + terminal/editor, programmable turtle, disks
 - ⏳ Wired computer networking (player-built switches, routers, and VPNs)
 - ✅ Redstone I/O (read/drive signals on any face from a program)
-- ⏳ Peripherals (monitors)
+- ✅ Monitors (in-world text display driven from code)
+- ✅ Resident execution (timers that keep running after the terminal closes)
+- ⏳ Resident execution persistence (auto-restart on world reload, startup programs)
 - 🌟 In-game code editor with type completion
 - 🔭 NeoForge support
 

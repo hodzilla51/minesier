@@ -4,6 +4,7 @@ import com.hodzilla51.minesier.net.IpPacket;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.ClassShutter;
 import org.mozilla.javascript.Context;
@@ -48,6 +49,13 @@ public final class JsComputer {
   /** Monitor I/O for the {@code monitor} global; null until a block-backed owner attaches one. */
   private MonitorApi monitor;
 
+  /**
+   * Background timers registered via {@code every}/{@code after}. Ticked once per server tick by
+   * the owning block entity, so a program keeps working after its terminal closes (a resident
+   * daemon).
+   */
+  private final List<Timer> timers = new ArrayList<>();
+
   /** Attaches the turtle this VM controls; call before {@link #run} on a turtle. */
   public void setTurtle(TurtleApi turtle) {
     this.turtle = turtle;
@@ -68,15 +76,66 @@ public final class JsComputer {
     this.monitor = monitor;
   }
 
-  /** Stops all event handlers owned by this VM. Called before a new terminal program runs. */
-  public void clearReceiveHandlers() {
+  /**
+   * Stops all background work owned by this VM: network receive callbacks and timers. Called before
+   * a new terminal program runs, and when the owner is removed.
+   */
+  public synchronized void clearReceiveHandlers() {
     if (network != null) {
       network.clearReceiveListeners();
     }
+    timers.clear();
+  }
+
+  /** True while this VM has live timers (so its block entity keeps getting ticked). */
+  public synchronized boolean hasTimers() {
+    return !timers.isEmpty();
+  }
+
+  /**
+   * Server tick: fires every timer whose countdown has elapsed, re-arming repeating ones and
+   * dropping one-shots. Returns whatever the callbacks printed (for the transcript).
+   */
+  public synchronized List<String> tickTimers() {
+    if (timers.isEmpty()) {
+      return List.of();
+    }
+    List<String> out = new ArrayList<>();
+    // Snapshot so a callback that registers a new timer doesn't fire it this same tick.
+    List<Timer> due = new ArrayList<>();
+    for (Timer timer : new ArrayList<>(timers)) {
+      if (--timer.remaining <= 0) {
+        due.add(timer);
+      }
+    }
+    for (Timer timer : due) {
+      out.addAll(invokeBounded(timer.fn, null));
+      if (timer.once) {
+        timers.remove(timer);
+      } else {
+        timer.remaining = timer.interval;
+      }
+    }
+    return out;
   }
 
   /** Invokes one registered receive callback within a small, tick-safe instruction budget. */
   private synchronized void invokeReceiveHandler(Function handler, NetworkFrame frame) {
+    List<String> out =
+        invokeBounded(handler, (cx, sc) -> new Object[] {receiveFrameObject(cx, sc, frame)});
+    NetworkApi net = network;
+    if (net != null) {
+      net.reportOutput(out);
+    }
+  }
+
+  /**
+   * Runs a script callback against this VM's scope under the deny-all sandbox and a tick-safe
+   * instruction budget. {@code argBuilder} (nullable) supplies the call arguments using the entered
+   * context; printed output is collected and returned.
+   */
+  private List<String> invokeBounded(
+      Function handler, BiFunction<Context, Scriptable, Object[]> argBuilder) {
     List<String> out = new ArrayList<>();
     SafeContextFactory.resetCounter(100_000L);
     Context cx = Context.enter();
@@ -88,17 +147,15 @@ public final class JsComputer {
         // A pooled context may already have the deny-all shutter.
       }
       this.sink = out;
-      handler.call(cx, scope, scope, new Object[] {receiveFrameObject(cx, scope, frame)});
+      Object[] args = argBuilder == null ? new Object[0] : argBuilder.apply(cx, scope);
+      handler.call(cx, scope, scope, args);
     } catch (RhinoException | IllegalStateException e) {
       out.add("error: " + e.getMessage());
     } finally {
       this.sink = null;
       Context.exit();
     }
-    NetworkApi net = network;
-    if (net != null) {
-      net.reportOutput(out);
-    }
+    return out;
   }
 
   private Object receiveFrameObject(Context cx, Scriptable scope, NetworkFrame frame) {
@@ -196,6 +253,10 @@ public final class JsComputer {
           ScriptableObject.putProperty(monitorObj, "at", new MonitorFunction());
           ScriptableObject.putProperty(scope, "monitor", monitorObj);
         }
+        // Resident-execution timers: a program keeps running after its terminal closes.
+        ScriptableObject.putProperty(scope, "every", new TimerRegisterFunction(false));
+        ScriptableObject.putProperty(scope, "after", new TimerRegisterFunction(true));
+        ScriptableObject.putProperty(scope, "clearTimers", new ClearTimersFunction());
       }
       this.sink = out;
       Object result = cx.evaluateString(scope, source, "computer", 1, null);
@@ -617,6 +678,58 @@ public final class JsComputer {
         case "columns" -> m.columns(side);
         default -> Boolean.FALSE;
       };
+    }
+  }
+
+  /**
+   * A scheduled background callback. {@code remaining} counts down server ticks to the next fire.
+   */
+  private static final class Timer {
+    final int interval;
+    final Function fn;
+    final boolean once;
+    int remaining;
+
+    Timer(int interval, Function fn, boolean once) {
+      this.interval = interval;
+      this.fn = fn;
+      this.once = once;
+      this.remaining = interval;
+    }
+  }
+
+  /**
+   * The {@code every(ticks, fn)} / {@code after(ticks, fn)} globals: register a repeating or
+   * one-shot timer. A computer with any live timer keeps running after its terminal is closed.
+   */
+  private final class TimerRegisterFunction extends BaseFunction {
+    private final boolean once;
+
+    TimerRegisterFunction(boolean once) {
+      this.once = once;
+    }
+
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      if (args.length < 2 || !(args[1] instanceof Function fn)) {
+        return Boolean.FALSE;
+      }
+      int interval = Math.max(1, (int) Context.toNumber(args[0]));
+      synchronized (JsComputer.this) {
+        timers.add(new Timer(interval, fn, once));
+      }
+      return Boolean.TRUE;
+    }
+  }
+
+  /** The {@code clearTimers()} global: stops every background timer (the script-level "stop"). */
+  private final class ClearTimersFunction extends BaseFunction {
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      synchronized (JsComputer.this) {
+        timers.clear();
+      }
+      return Undefined.instance;
     }
   }
 

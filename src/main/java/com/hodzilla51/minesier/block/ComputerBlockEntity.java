@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.block;
 
+import com.hodzilla51.minesier.ComputerManager;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.MonitorApi;
@@ -162,6 +163,22 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     transcript.addAll(computer.run(command));
     trim();
     setChanged();
+    // If the program registered timers, keep this computer ticking after the terminal closes.
+    ComputerManager.setActive(this, computer.hasTimers());
+  }
+
+  /**
+   * Server tick (driven by {@link ComputerManager}): fires any due timers and folds their output
+   * into the transcript. Returns whether this computer still has live timers.
+   */
+  public boolean tickDaemon() {
+    List<String> out = computer.tickTimers();
+    if (!out.isEmpty()) {
+      transcript.addAll(out);
+      trim();
+      setChanged();
+    }
+    return computer.hasTimers();
   }
 
   /** The full scrollback joined with newlines (for sending to the client). */
@@ -485,6 +502,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   @Override
   public void setRemoved() {
     computer.clearReceiveHandlers();
+    ComputerManager.unregister(this);
     super.setRemoved();
   }
 }
