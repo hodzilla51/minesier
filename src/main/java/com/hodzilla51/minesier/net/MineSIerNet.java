@@ -4,6 +4,8 @@ import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.ProgramStore;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.turtle.TurtleManager;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -164,11 +166,7 @@ public final class MineSIerNet {
         }
       }
       case ProgramActionC2S.LIST ->
-          note(
-              player,
-              pos,
-              store,
-              "programs: " + String.join(", ", new TreeSet<>(store.programNames())));
+          note(player, pos, store, formatProgramTree(store.programNames()));
       case ProgramActionC2S.DELETE -> {
         store.deleteProgram(p.name());
         note(player, pos, store, "deleted: " + p.name());
@@ -192,6 +190,48 @@ public final class MineSIerNet {
   private static void note(ServerPlayer player, BlockPos pos, ProgramStore store, String line) {
     ServerPlayNetworking.send(
         player, new TerminalScreenS2C(pos, store.getTranscript() + "\n" + line, false));
+  }
+
+  /**
+   * Renders program names as an indented folder tree, treating {@code /} in a name as a path
+   * separator (so {@code lib/crypto} and {@code net/router} group under their folders).
+   */
+  private static String formatProgramTree(Set<String> names) {
+    if (names.isEmpty()) {
+      return "programs: (none)";
+    }
+    DirNode root = new DirNode();
+    for (String name : names) {
+      DirNode node = root;
+      String[] parts = name.split("/");
+      for (int i = 0; i < parts.length - 1; i++) {
+        node = node.dirs.computeIfAbsent(parts[i], k -> new DirNode());
+      }
+      node.files.add(parts[parts.length - 1]);
+    }
+    StringBuilder sb = new StringBuilder("programs:");
+    renderTree(root, 1, sb);
+    return sb.toString();
+  }
+
+  private static void renderTree(DirNode node, int depth, StringBuilder sb) {
+    String indent = "  ".repeat(depth);
+    for (var entry : node.dirs.entrySet()) {
+      sb.append('\n').append(indent).append(entry.getKey()).append('/');
+      renderTree(entry.getValue(), depth + 1, sb);
+    }
+    for (String file : node.files) {
+      sb.append('\n').append(indent).append(file);
+    }
+  }
+
+  /**
+   * One level of the program folder tree: sub-folders (sorted) plus files (sorted) at this level.
+   */
+  private record DirNode(TreeMap<String, DirNode> dirs, TreeSet<String> files) {
+    DirNode() {
+      this(new TreeMap<>(), new TreeSet<>());
+    }
   }
 
   private static void handleRun(ServerPlayer player, RunCommandC2S payload) {

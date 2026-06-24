@@ -61,6 +61,9 @@ print("done, fuel = " + turtle.getFuelLevel());
 program, type a name, and press **Save**. Press **Eject**, carry the disk to
 another computer, insert it, and **Load** — your program comes with it.
 
+Program names can use `/` as a folder separator (`lib/crypto`, `net/router`).
+**List** shows the saved programs as an indented folder tree.
+
 ### Turtle API
 
 `forward()` `back()` `turnLeft()` `turnRight()` `dig()` `place()` (from the
