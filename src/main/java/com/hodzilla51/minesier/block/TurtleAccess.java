@@ -8,6 +8,7 @@ import com.hodzilla51.minesier.net.TurtleTurnS2C;
 import com.hodzilla51.minesier.net.TurtleVisualAction;
 import com.hodzilla51.minesier.net.TurtleVisualS2C;
 import com.hodzilla51.minesier.turtle.TurtleNetworkState;
+import com.hodzilla51.minesier.turtle.TurtleTopModules;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
@@ -118,7 +119,11 @@ public class TurtleAccess implements TurtleApi {
       case "up" -> movementCost(Direction.UP).ticks();
       case "down" -> movementCost(Direction.DOWN).ticks();
       case "dig" -> beginDigTicks(defaultTicks);
-      case "scan" -> hasProximitySensor() ? 20 : 0;
+      case "scan" ->
+          topModule()
+              .filter(TurtleTopModules.Module::providesScan)
+              .map(TurtleTopModules.Module::scanTicks)
+              .orElse(0);
       default -> defaultTicks;
     };
   }
@@ -383,14 +388,15 @@ public class TurtleAccess implements TurtleApi {
 
   @Override
   public List<ScanResult> scan() {
-    if (!hasProximitySensor()) {
+    TurtleTopModules.Module module = topModule().orElse(null);
+    if (module == null || !module.providesScan()) {
       return List.of();
     }
-    if (fuel < 1) {
+    if (fuel < module.scanFuel()) {
       emitVisual(TurtleVisualAction.OUT_OF_FUEL, "!");
       return List.of();
     }
-    fuel--;
+    fuel -= module.scanFuel();
     List<ScanResult> results = new ArrayList<>();
     for (int dx = -3; dx <= 3; dx++) {
       for (int dy = -1; dy <= 1; dy++) {
@@ -494,8 +500,8 @@ public class TurtleAccess implements TurtleApi {
     return FootProfile.NONE;
   }
 
-  private boolean hasProximitySensor() {
-    return equipment.get(TurtleBlockEntity.EQUIPMENT_TOP).is(ModContent.PROXIMITY_SENSOR_MODULE);
+  private java.util.Optional<TurtleTopModules.Module> topModule() {
+    return TurtleTopModules.find(equipment.get(TurtleBlockEntity.EQUIPMENT_TOP));
   }
 
   private enum Terrain {

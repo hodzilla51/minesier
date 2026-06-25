@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.menu;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.turtle.TurtleManager;
+import com.hodzilla51.minesier.turtle.TurtleTopModules;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.Container;
@@ -187,7 +188,7 @@ public class TurtleEquipmentMenu extends AbstractContainerMenu {
   }
 
   public static boolean isTopModule(ItemStack stack) {
-    return stack.is(ModContent.PROXIMITY_SENSOR_MODULE);
+    return TurtleTopModules.isTopModule(stack);
   }
 
   public static boolean isTool(ItemStack stack) {

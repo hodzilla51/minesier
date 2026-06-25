@@ -4,6 +4,7 @@ import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
 import com.hodzilla51.minesier.net.OpenTurtleInventoryC2S;
 import com.hodzilla51.minesier.net.OpenTurtleTerminalC2S;
+import com.hodzilla51.minesier.turtle.TurtleTopModules;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -129,7 +130,7 @@ public class TurtleEquipmentScreen extends AbstractContainerScreen<TurtleEquipme
     graphics.text(this.font, title, slot.x + 24, slot.y - 1, TITLE_COLOR);
 
     ItemStack stack = this.menu.equipmentItem(equipmentSlot);
-    String detail = stack.isEmpty() ? hint : itemName(stack);
+    String detail = stack.isEmpty() ? hint : equipmentDetail(equipmentSlot, stack);
     int color = stack.isEmpty() ? EMPTY_COLOR : TEXT_COLOR;
     int detailX = cardX + EQUIPMENT_SLOT_INSET_X + SLOT + 6;
     int detailMaxW = cardX + cardW - detailX - 4;
@@ -138,6 +139,15 @@ public class TurtleEquipmentScreen extends AbstractContainerScreen<TurtleEquipme
 
   private static String itemName(ItemStack stack) {
     return BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+  }
+
+  private static String equipmentDetail(int equipmentSlot, ItemStack stack) {
+    if (equipmentSlot == TurtleBlockEntity.EQUIPMENT_TOP) {
+      return TurtleTopModules.find(stack)
+          .map(module -> itemName(stack) + " - " + module.role() + ": " + module.summary())
+          .orElseGet(() -> itemName(stack));
+    }
+    return itemName(stack);
   }
 
   private String trim(String text, int maxPx) {
