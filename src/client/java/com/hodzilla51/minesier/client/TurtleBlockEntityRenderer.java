@@ -39,16 +39,20 @@ public class TurtleBlockEntityRenderer
     implements BlockEntityRenderer<TurtleBlockEntity, TurtleRenderState> {
 
   private static final float SCREEN_SCALE = 0.035f;
+  private static final float BASE_WIDTH = 0.72f;
+  private static final float BASE_HEIGHT = 0.68f;
+  private static final float BASE_DEPTH = 0.72f;
+  private static final float SCREEN_Z = BASE_DEPTH / 2f + 0.002f;
   private static final int FULL_BRIGHT = 0xF000F0;
   private static final int FOOT_COLOR = 0xFF66D9EF;
   private static final int ARM_COLOR = 0xFFFFD166;
   private static final int TOP_COLOR = 0xFFB48CFF;
   private static final VoxelShape FOOT_SHAPE =
       Shapes.or(
-          Shapes.box(0.08, -0.08, 0.08, 0.24, 0.10, 0.92),
-          Shapes.box(0.76, -0.08, 0.08, 0.92, 0.10, 0.92));
-  private static final VoxelShape ARM_SHAPE = Shapes.box(0.92, 0.28, 0.24, 1.18, 0.48, 0.76);
-  private static final VoxelShape TOP_SHAPE = Shapes.box(0.30, 0.96, 0.30, 0.70, 1.18, 0.70);
+          Shapes.box(0.08, 0.02, 0.16, 0.22, 0.18, 0.84),
+          Shapes.box(0.78, 0.02, 0.16, 0.92, 0.18, 0.84));
+  private static final VoxelShape ARM_SHAPE = Shapes.box(0.82, 0.32, 0.28, 0.98, 0.56, 0.72);
+  private static final VoxelShape TOP_SHAPE = Shapes.box(0.32, 0.84, 0.32, 0.68, 1.12, 0.68);
 
   private final Font font;
   private final ItemModelResolver itemModelResolver;
@@ -147,11 +151,21 @@ public class TurtleBlockEntityRenderer
     if (state.tiltZDeg != 0f) {
       poseStack.rotateAround(Axis.ZP.rotationDegrees(state.tiltZDeg), 0.5f, 0.5f, 0.5f);
     }
-    // The final argument is an optional outline color, not a light coordinate.
-    collector.submitMovingBlock(poseStack, state.moving, 0);
+    submitBase(state, poseStack, collector);
     submitEquipmentShapes(state, poseStack, collector);
     submitEquipment(state, poseStack, collector);
     submitScreen(state, poseStack, collector);
+    poseStack.popPose();
+  }
+
+  private void submitBase(
+      TurtleRenderState state, PoseStack poseStack, SubmitNodeCollector collector) {
+    poseStack.pushPose();
+    poseStack.translate(0.5, 0.5, 0.5);
+    poseStack.scale(BASE_WIDTH, BASE_HEIGHT, BASE_DEPTH);
+    poseStack.translate(-0.5, -0.5, -0.5);
+    // The final argument is an optional outline color, not a light coordinate.
+    collector.submitMovingBlock(poseStack, state.moving, 0);
     poseStack.popPose();
   }
 
@@ -222,7 +236,7 @@ public class TurtleBlockEntityRenderer
     poseStack.pushPose();
     poseStack.translate(0.5, 0.5, 0.5);
     poseStack.mulPose(Axis.YP.rotationDegrees(-state.facing.toYRot()));
-    poseStack.translate(0.0, 0.0, 0.501);
+    poseStack.translate(0.0, 0.0, SCREEN_Z);
     poseStack.scale(SCREEN_SCALE, -SCREEN_SCALE, SCREEN_SCALE);
     FormattedCharSequence text = FormattedCharSequence.forward(state.screenText, Style.EMPTY);
     poseStack.translate(-font.width(text) / 2f, -font.lineHeight / 2f, 0f);
@@ -274,17 +288,17 @@ public class TurtleBlockEntityRenderer
 
     if (!state.footItem.isEmpty()) {
       poseStack.pushPose();
-      poseStack.translate(0.0, -0.45, -0.18);
-      poseStack.scale(0.32f, 0.32f, 0.32f);
+      poseStack.translate(0.0, -0.42, -0.18);
+      poseStack.scale(0.24f, 0.24f, 0.24f);
       state.footItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
       poseStack.popPose();
     }
 
     if (!state.armItem.isEmpty()) {
       poseStack.pushPose();
-      poseStack.translate(0.42, -0.03, 0.28);
+      poseStack.translate(0.39, -0.03, 0.25);
       poseStack.mulPose(Axis.ZP.rotationDegrees(-35f));
-      poseStack.scale(0.34f, 0.34f, 0.34f);
+      poseStack.scale(0.24f, 0.24f, 0.24f);
       state.armItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
       poseStack.popPose();
     }
