@@ -175,6 +175,7 @@ public final class JsComputer {
       this.sink = out;
       Object[] args = argBuilder == null ? new Object[0] : argBuilder.apply(cx, scope);
       handler.call(cx, scope, scope, args);
+      cx.processMicrotasks();
     } catch (RhinoException | IllegalStateException e) {
       out.add("error: " + e.getMessage());
     } finally {
@@ -302,6 +303,7 @@ public final class JsComputer {
       }
       this.sink = out;
       Object result = cx.evaluateString(scope, source, "computer", 1, null);
+      cx.processMicrotasks();
       if (result != null && !Undefined.isUndefined(result)) {
         out.add(Context.toString(result));
       }
@@ -843,6 +845,7 @@ public final class JsComputer {
       ScriptableObject.putProperty(moduleScope, "require", this);
       moduleCache.put(name, exportsObj); // partial exports for circular requires
       cx.evaluateString(moduleScope, source, name, 1, null);
+      cx.processMicrotasks();
       Object exported = ScriptableObject.getProperty(moduleObj, "exports");
       moduleCache.put(name, exported);
       return exported;
