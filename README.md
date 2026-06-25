@@ -102,6 +102,12 @@ MAC-like addresses and queued frames survive block-by-block movement.
 
 Global: `print(...)`. There is also a `/js <expression>` command for one-off evaluation.
 
+### JavaScript API version
+
+Scripts can check `minesier.apiVersion` and `minesier.apiVersionString`.
+See [JavaScript API versioning](docs/javascript-api-versioning.md) for the
+compatibility and deprecation policy.
+
 ### Redstone I/O
 
 Any computer can read and drive redstone on its six faces. Sides are named

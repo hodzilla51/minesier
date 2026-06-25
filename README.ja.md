@@ -80,6 +80,11 @@ fs.remove("/data/scans.json");
 
 グローバル: `print(...)`。単発評価用の `/js <式>` コマンドもあります。
 
+### JavaScript APIバージョン
+
+スクリプトから `minesier.apiVersion` と `minesier.apiVersionString` を確認できます。
+互換性と非推奨化の方針は [JavaScript API versioning](docs/javascript-api-versioning.md) を参照。
+
 ### 有線ネットワーク（開発中）
 
 コンピュータには、画面と反対側の面に1個のNICがあります。Cableをその面へつなげると、同じ

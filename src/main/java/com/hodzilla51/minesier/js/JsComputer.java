@@ -29,6 +29,9 @@ import org.mozilla.javascript.Undefined;
  * class resolution, and interpreted mode avoids bytecode generation under Knot's classloader.
  */
 public final class JsComputer {
+  public static final int API_VERSION = 1;
+  public static final String API_VERSION_STRING = "1";
+
   /** Hide every Java class from scripts — nothing is visible. */
   private static final ClassShutter DENY_ALL = fullClassName -> false;
 
@@ -220,6 +223,10 @@ public final class JsComputer {
       if (scope == null) {
         scope = cx.initSafeStandardObjects();
         ScriptableObject.putProperty(scope, "print", new PrintFunction());
+        ScriptableObject minesierObj = (ScriptableObject) cx.newObject(scope);
+        ScriptableObject.putProperty(minesierObj, "apiVersion", API_VERSION);
+        ScriptableObject.putProperty(minesierObj, "apiVersionString", API_VERSION_STRING);
+        ScriptableObject.putProperty(scope, "minesier", minesierObj);
         ScriptableObject cryptoObj = (ScriptableObject) cx.newObject(scope);
         for (String op :
             new String[] {
