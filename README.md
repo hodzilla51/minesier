@@ -58,12 +58,14 @@ print("done, fuel = " + turtle.getFuelLevel());
 ```
 
 **Disks** — hold a disk and right-click a computer/turtle to insert it. Write a
-program, type a name, and press **Save**. Press **Eject**, carry the disk to
-another computer, insert it, and **Load** — your program comes with it.
+program or text data, type a file path, and press **Save**. Press **Eject**,
+carry the disk to another computer, insert it, and **Load** — your files come
+with it.
 
-Program names can use `/` as a folder separator (`lib/crypto`, `net/router`).
-The terminal's left pane shows the saved programs as a folder tree — click a
-file to load it. **List** prints the same tree to the transcript.
+Disk paths can use `/` as a folder separator (`/startup.js`, `lib/crypto.js`,
+`data/scans.json`). Paths are stored without the leading slash. The terminal's
+left pane shows saved files as a folder tree — click a file to load it. **List**
+prints the same tree to the transcript.
 
 ### Modules (`require`)
 
@@ -166,8 +168,21 @@ saved with the computer and re-run automatically when its chunk loads (JS state
 itself isn't serialized, so top-level setup runs again — keep it idempotent).
 Timers only fire while the chunk is loaded.
 
-You can also boot a daemon from a disk: save a program named `startup`, and it
-runs automatically the moment that disk is inserted into a computer.
+You can also boot a daemon from a disk: save a program named `/startup.js`, and
+it runs automatically the moment that disk is inserted into a computer.
+
+### Disk filesystem API
+
+Programs on Computers and Turtles can read and write text files on the inserted
+disk:
+
+```js
+fs.write("/data/scans.json", "[]");
+print(fs.exists("/data/scans.json")); // true
+print(fs.read("/data/scans.json"));   // []
+print(fs.list("/data"));              // scans.json
+fs.remove("/data/scans.json");
+```
 
 ### Wired networking (in development)
 

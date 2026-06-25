@@ -2,7 +2,9 @@ package com.hodzilla51.minesier.block;
 
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.item.DiskContents;
+import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -36,20 +38,73 @@ public interface ProgramStore {
   }
 
   default void saveProgram(String name, String source) {
-    getDisk().set(ModContent.DISK_CONTENTS, contents().with(name, source));
+    saveFile(name, source);
+  }
+
+  default boolean saveFile(String path, String text) {
+    String normalized = DiskContents.normalizePath(path);
+    if (!hasDisk() || normalized == null) {
+      return false;
+    }
+    getDisk().set(ModContent.DISK_CONTENTS, contents().with(normalized, text));
     markChanged();
+    return true;
   }
 
   default String loadProgram(String name) {
-    return contents().files().get(name);
+    return readFile(name);
+  }
+
+  default String readFile(String path) {
+    String normalized = DiskContents.normalizePath(path);
+    return normalized == null ? null : contents().files().get(normalized);
   }
 
   default Set<String> programNames() {
+    return filePaths();
+  }
+
+  default Set<String> filePaths() {
     return contents().files().keySet();
   }
 
   default void deleteProgram(String name) {
-    getDisk().set(ModContent.DISK_CONTENTS, contents().without(name));
+    deleteFile(name);
+  }
+
+  default boolean deleteFile(String path) {
+    String normalized = DiskContents.normalizePath(path);
+    if (!hasDisk() || normalized == null) {
+      return false;
+    }
+    getDisk().set(ModContent.DISK_CONTENTS, contents().without(normalized));
     markChanged();
+    return true;
+  }
+
+  default boolean fileExists(String path) {
+    String normalized = DiskContents.normalizePath(path);
+    return normalized != null && contents().files().containsKey(normalized);
+  }
+
+  default List<String> listFiles(String path) {
+    String normalized =
+        path == null || path.isBlank() || "/".equals(path.trim())
+            ? ""
+            : DiskContents.normalizePath(path);
+    if (normalized == null) {
+      return List.of();
+    }
+    String prefix = normalized.isEmpty() ? "" : normalized + "/";
+    TreeSet<String> names = new TreeSet<>();
+    for (String file : contents().files().keySet()) {
+      if (!file.startsWith(prefix)) {
+        continue;
+      }
+      String rest = file.substring(prefix.length());
+      int slash = rest.indexOf('/');
+      names.add(slash >= 0 ? rest.substring(0, slash + 1) : rest);
+    }
+    return List.copyOf(names);
   }
 }

@@ -88,7 +88,7 @@ public class ComputerBlock extends BaseEntityBlock {
       if (!level.isClientSide()) {
         computer.setDisk(stack.copyWithCount(1));
         stack.shrink(1);
-        // Slotting a disk boots its `startup` program (if any), so a daemon can auto-run.
+        // Slotting a disk boots its `startup.js` program (if any), so a daemon can auto-run.
         computer.bootStartup();
         if (player instanceof ServerPlayer serverPlayer) {
           MineSIerNet.sendProgramList(serverPlayer, computer);

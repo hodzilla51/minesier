@@ -70,6 +70,33 @@ public final class TurtleManager {
     }
     vm.setNetwork(network);
     vm.setModuleLoader(be::loadProgram);
+    vm.setFileSystem(
+        new com.hodzilla51.minesier.js.FileSystemApi() {
+          @Override
+          public List<String> list(String path) {
+            return be.listFiles(path);
+          }
+
+          @Override
+          public String read(String path) {
+            return be.readFile(path);
+          }
+
+          @Override
+          public boolean write(String path, String text) {
+            return be.saveFile(path, text);
+          }
+
+          @Override
+          public boolean remove(String path) {
+            return be.deleteFile(path);
+          }
+
+          @Override
+          public boolean exists(String path) {
+            return be.fileExists(path);
+          }
+        });
     TurtleAccess world =
         new TurtleAccess(
             level, pos, facing, be.getFuel(), inventory, equipment, be.getSelectedSlot(), network);

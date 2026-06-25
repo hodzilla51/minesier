@@ -78,6 +78,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     computer.setRedstone(new ComputerRedstoneApi());
     computer.setMonitor(new ComputerMonitorApi());
     computer.setModuleLoader(this::loadProgram);
+    computer.setFileSystem(new DiskFileSystemApi());
   }
 
   /** The analog level this computer emits toward {@code face} (read by the block as a signal). */
@@ -178,11 +179,14 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   }
 
   /**
-   * Runs the disk's {@code startup} program when a disk is inserted, so a computer can boot a
-   * daemon just by slotting a prepared disk. No-op if there's no such program.
+   * Runs the disk's {@code startup.js} program when a disk is inserted, so a computer can boot a
+   * daemon just by slotting a prepared disk. Falls back to legacy {@code startup}.
    */
   public void bootStartup() {
-    String source = loadProgram("startup");
+    String source = loadProgram("/startup.js");
+    if (source == null) {
+      source = loadProgram("startup");
+    }
     if (source != null && !source.isBlank()) {
       runResident(source, "[startup]");
     }
@@ -479,6 +483,33 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     @Override
     public String[] sides() {
       return new String[] {"front", "back", "left", "right", "up", "down"};
+    }
+  }
+
+  private final class DiskFileSystemApi implements com.hodzilla51.minesier.js.FileSystemApi {
+    @Override
+    public java.util.List<String> list(String path) {
+      return listFiles(path);
+    }
+
+    @Override
+    public String read(String path) {
+      return readFile(path);
+    }
+
+    @Override
+    public boolean write(String path, String text) {
+      return saveFile(path, text);
+    }
+
+    @Override
+    public boolean remove(String path) {
+      return deleteFile(path);
+    }
+
+    @Override
+    public boolean exists(String path) {
+      return fileExists(path);
     }
   }
 

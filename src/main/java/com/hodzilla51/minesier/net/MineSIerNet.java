@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.net;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.ProgramStore;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
+import com.hodzilla51.minesier.item.DiskContents;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenuProvider;
 import com.hodzilla51.minesier.menu.TurtleMenu;
@@ -171,24 +172,33 @@ public final class MineSIerNet {
     }
     switch (p.action()) {
       case ProgramActionC2S.SAVE -> {
-        store.saveProgram(p.name(), p.source());
-        note(player, pos, store, "saved: " + p.name());
-        sendProgramList(player, store);
+        String path = DiskContents.normalizePath(p.name());
+        if (path == null || !store.saveFile(path, p.source())) {
+          note(player, pos, store, "invalid path: " + p.name());
+        } else {
+          note(player, pos, store, "saved: " + path);
+          sendProgramList(player, store);
+        }
       }
       case ProgramActionC2S.LOAD -> {
-        String source = store.loadProgram(p.name());
+        String path = DiskContents.normalizePath(p.name());
+        String source = path == null ? null : store.readFile(path);
         if (source != null) {
           ServerPlayNetworking.send(player, new LoadProgramS2C(source));
         } else {
-          note(player, pos, store, "no such program: " + p.name());
+          note(player, pos, store, "no such file: " + p.name());
         }
       }
       case ProgramActionC2S.LIST ->
           note(player, pos, store, formatProgramTree(store.programNames()));
       case ProgramActionC2S.DELETE -> {
-        store.deleteProgram(p.name());
-        note(player, pos, store, "deleted: " + p.name());
-        sendProgramList(player, store);
+        String path = DiskContents.normalizePath(p.name());
+        if (path == null || !store.deleteFile(path)) {
+          note(player, pos, store, "invalid path: " + p.name());
+        } else {
+          note(player, pos, store, "deleted: " + path);
+          sendProgramList(player, store);
+        }
       }
       default -> {}
     }

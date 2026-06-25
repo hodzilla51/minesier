@@ -51,6 +51,9 @@ public final class JsComputer {
   /** Monitor I/O for the {@code monitor} global; null until a block-backed owner attaches one. */
   private MonitorApi monitor;
 
+  /** Text filesystem for the inserted disk; null until an owner attaches one. */
+  private FileSystemApi fileSystem;
+
   /**
    * Background timers registered via {@code every}/{@code after}. Ticked once per server tick by
    * the owning block entity, so a program keeps working after its terminal closes (a resident
@@ -82,6 +85,11 @@ public final class JsComputer {
   /** Attaches the monitor I/O owned by this VM's block entity. */
   public void setMonitor(MonitorApi monitor) {
     this.monitor = monitor;
+  }
+
+  /** Attaches disk-backed file operations exposed as {@code fs}. */
+  public void setFileSystem(FileSystemApi fileSystem) {
+    this.fileSystem = fileSystem;
   }
 
   /** Attaches the {@code require(name)} resolver (maps a name to another program's source). */
@@ -270,6 +278,13 @@ public final class JsComputer {
           ScriptableObject monitorObj = (ScriptableObject) cx.newObject(scope);
           ScriptableObject.putProperty(monitorObj, "at", new MonitorFunction());
           ScriptableObject.putProperty(scope, "monitor", monitorObj);
+        }
+        if (fileSystem != null) {
+          ScriptableObject fsObj = (ScriptableObject) cx.newObject(scope);
+          for (String op : new String[] {"list", "read", "write", "remove", "exists"}) {
+            ScriptableObject.putProperty(fsObj, op, new FileSystemFunction(op));
+          }
+          ScriptableObject.putProperty(scope, "fs", fsObj);
         }
         // Resident-execution timers: a program keeps running after its terminal closes.
         ScriptableObject.putProperty(scope, "every", new TimerRegisterFunction(false));
@@ -469,6 +484,41 @@ public final class JsComputer {
             }
           });
       return object;
+    }
+  }
+
+  /** A method on the {@code fs} global; delegates to the inserted disk filesystem. */
+  private final class FileSystemFunction extends BaseFunction {
+    private final String op;
+
+    FileSystemFunction(String op) {
+      this.op = op;
+    }
+
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      FileSystemApi fs = fileSystem;
+      if (fs == null) {
+        return switch (op) {
+          case "list" -> cx.newArray(scope, new Object[0]);
+          case "exists" -> Boolean.FALSE;
+          case "write", "remove" -> Boolean.FALSE;
+          default -> null;
+        };
+      }
+      String path = args.length > 0 ? Context.toString(args[0]) : "/";
+      return switch (op) {
+        case "list" -> {
+          List<String> names = fs.list(path);
+          yield cx.newArray(scope, names.toArray(Object[]::new));
+        }
+        case "read" -> fs.read(path);
+        case "write" ->
+            args.length >= 2 ? fs.write(path, Context.toString(args[1])) : Boolean.FALSE;
+        case "remove" -> fs.remove(path);
+        case "exists" -> fs.exists(path);
+        default -> null;
+      };
     }
   }
 

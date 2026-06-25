@@ -57,8 +57,20 @@ print("done, fuel = " + turtle.getFuelLevel());
 ```
 
 **ディスク** — ディスクを手に持ってコンピュータ/タートルを右クリックで挿入。
-プログラムを書いて名前を入れ **Save**。**Eject** で取り出し、別のコンピュータに挿して
-**Load** すれば、プログラムが付いてくる。
+プログラムやテキストデータを書いてファイルパスを入れ **Save**。**Eject** で取り出し、
+別のコンピュータに挿して **Load** すれば、ファイルが付いてくる。
+
+パスは `/startup.js` や `data/scans.json` のように `/` でフォルダ分けできます
+（内部では先頭の `/` なしで保存）。コンピュータ/タートルのプログラムからは
+ディスク上のテキストファイルを `fs` API で読み書きできます:
+
+```js
+fs.write("/data/scans.json", "[]");
+print(fs.exists("/data/scans.json")); // true
+print(fs.read("/data/scans.json"));   // []
+print(fs.list("/data"));              // scans.json
+fs.remove("/data/scans.json");
+```
 
 ### タートルAPI
 

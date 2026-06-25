@@ -167,7 +167,7 @@ public class ComputerScreen extends Screen {
     this.editor.setCharacterLimit(8192);
     addRenderableWidget(this.editor);
 
-    // Bottom row, right-aligned: [name field] Save Load List Eject Run
+    // Bottom row, right-aligned: [path field] Save Load List Eject Run
     int gap = 4;
     int bw = 44;
     int runX = this.width - MARGIN - bw;
@@ -177,9 +177,9 @@ public class ComputerScreen extends Screen {
     int saveX = loadX - gap - bw;
     int nameW = saveX - gap - MARGIN;
 
-    this.nameField = new EditBox(font, MARGIN, buttonY, nameW, BUTTON_H, Component.literal("name"));
-    this.nameField.setHint(Component.literal("program name"));
-    this.nameField.setMaxLength(64);
+    this.nameField = new EditBox(font, MARGIN, buttonY, nameW, BUTTON_H, Component.literal("path"));
+    this.nameField.setHint(Component.literal("file path"));
+    this.nameField.setMaxLength(96);
     addRenderableWidget(this.nameField);
 
     addRenderableWidget(
