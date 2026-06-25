@@ -9,14 +9,18 @@ import com.hodzilla51.minesier.net.TurtleMoveS2C;
 import com.hodzilla51.minesier.net.TurtleTurnS2C;
 import com.hodzilla51.minesier.net.TurtleVisualS2C;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 
 public class MineSIerClient implements ClientModInitializer {
   @Override
   public void onInitializeClient() {
+    registerTooltips();
+
     // Server pushes terminal state: open the screen, or update the open one.
     ClientPlayNetworking.registerGlobalReceiver(
         TerminalScreenS2C.TYPE,
@@ -122,5 +126,40 @@ public class MineSIerClient implements ClientModInitializer {
     // Draws the monitor's text buffer on its screen face.
     BlockEntityRendererRegistry.register(
         ModContent.MONITOR_BLOCK_ENTITY, MonitorBlockEntityRenderer::new);
+  }
+
+  private static void registerTooltips() {
+    ItemTooltipCallback.EVENT.register(
+        (stack, context, flag, lines) -> {
+          if (stack.is(ModContent.COMPUTER_BLOCK.asItem())) {
+            guide(lines, "computer.1", "computer.2", "computer.3");
+          } else if (stack.is(ModContent.TURTLE_BLOCK.asItem())) {
+            guide(lines, "turtle.1", "turtle.2", "turtle.3");
+          } else if (stack.is(ModContent.DISK)) {
+            guide(lines, "disk.1", "disk.2");
+          } else if (stack.is(ModContent.CABLE_BLOCK.asItem())) {
+            guide(lines, "cable.1", "cable.2");
+          } else if (stack.is(ModContent.SWITCH_BLOCK.asItem())) {
+            guide(lines, "switch.1", "switch.2");
+          } else if (stack.is(ModContent.WIRELESS_MODEM_BLOCK.asItem())) {
+            guide(lines, "wireless_modem.1", "wireless_modem.2");
+          } else if (stack.is(ModContent.MONITOR_BLOCK.asItem())) {
+            guide(lines, "monitor.1", "monitor.2");
+          } else if (stack.is(ModContent.WHEEL_FOOT_PART)) {
+            guide(lines, "wheel_foot_part.1");
+          } else if (stack.is(ModContent.CRAWLER_FOOT_PART)) {
+            guide(lines, "crawler_foot_part.1");
+          } else if (stack.is(ModContent.HOVER_FOOT_PART)) {
+            guide(lines, "hover_foot_part.1");
+          } else if (stack.is(ModContent.PROXIMITY_SENSOR_MODULE)) {
+            guide(lines, "proximity_sensor_module.1");
+          }
+        });
+  }
+
+  private static void guide(java.util.List<Component> lines, String... keys) {
+    for (String key : keys) {
+      lines.add(Component.translatable("tooltip.minesier." + key));
+    }
   }
 }

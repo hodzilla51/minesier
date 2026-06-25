@@ -44,7 +44,12 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
   public static final int EQUIPMENT_ARM = 1;
   public static final int EQUIPMENT_TOP = 2;
   private static final int DEFAULT_FUEL = 1000;
-  private static final String WELCOME = "MineSIer turtle — try turtle.forward()";
+  private static final String WELCOME =
+      String.join(
+          "\n",
+          "MineSIer turtle — try turtle.forward()",
+          "Use Inventory for 16 slots, Equipment for foot/arm/top parts.",
+          "Disk files work here too: fs.read(path), fs.write(path, text).");
 
   private JsComputer vm = new JsComputer();
   private final List<String> transcript = new ArrayList<>(List.of(WELCOME));

@@ -41,7 +41,12 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   private static final String KEY_ADDRESS = "NetworkAddress";
   private static final String KEY_REDSTONE_OUT = "RedstoneOut";
   private static final String KEY_RESIDENT = "ResidentSource";
-  private static final String WELCOME = "MineSIer JS terminal — type an expression.";
+  private static final String WELCOME =
+      String.join(
+          "\n",
+          "MineSIer JS terminal — try print(\"hello\")",
+          "Disk files: Save /startup.js to boot a program.",
+          "Network: net.send(addr, data), net.receive(), net.nic(\"north\").address()");
 
   /** This computer's own sandboxed JS VM (1 block = 1 VM). */
   private final JsComputer computer = new JsComputer();
