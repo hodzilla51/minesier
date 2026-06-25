@@ -34,6 +34,7 @@ public record TurtleMenuProvider(
         id,
         inventory,
         new TurtleContainer(turtle),
+        new TurtleDiskContainer(turtle),
         ContainerLevelAccess.create(player.level(), pos),
         screenWidth,
         screenHeight);

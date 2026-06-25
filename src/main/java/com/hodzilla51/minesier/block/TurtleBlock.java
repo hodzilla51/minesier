@@ -75,6 +75,9 @@ public class TurtleBlock extends BaseEntityBlock {
     if (!level.isClientSide() && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
       Containers.dropContents(level, pos, turtle.getInventory());
       Containers.dropContents(level, pos, turtle.getEquipment());
+      if (!turtle.getDisk().isEmpty()) {
+        Containers.dropItemStack(level, pos.getX(), pos.getY(), pos.getZ(), turtle.getDisk());
+      }
     }
     return super.playerWillDestroy(level, pos, state, player);
   }

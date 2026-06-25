@@ -9,11 +9,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -28,14 +26,11 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
   private static final int TAB_W = 80;
   private static final int PLAYER_INV_H = 72;
   private static final int SLOT = 18;
-  private static final int ROW_H = 11;
-  private static final int ROWS = 8;
 
   private static final int PANEL_COLOR = 0xFF0C120C;
   private static final int BORDER_COLOR = 0xFF3A6B3A;
   private static final int TITLEBAR_COLOR = 0xFF18301A;
   private static final int TITLE_COLOR = 0xFF7CFC7C;
-  private static final int TEXT_COLOR = 0xFFD0E8D0;
   private static final int EMPTY_COLOR = 0xFF5A6E5A;
   private static final int HOVER_COLOR = 0x33FFFFFF;
   private static final int CELL_COLOR = 0xFF243024;
@@ -77,23 +72,10 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
     return this.font.lineHeight + 6;
   }
 
-  private int cellWidth() {
-    return (this.width - 2 * MARGIN - 8) / 2;
-  }
-
-  private int cellX(int index) {
-    return MARGIN + 4 + (index / ROWS) * cellWidth();
-  }
-
-  private int cellY(int index) {
-    return CONTENT_TOP + titleHeight() + 4 + (index % ROWS) * ROW_H;
-  }
-
   private int cellAt(double x, double y) {
     for (int i = 0; i < TurtleMenu.TURTLE_SIZE; i++) {
-      int cellX = cellX(i);
-      int cellY = cellY(i);
-      if (x >= cellX && x < cellX + cellWidth() && y >= cellY && y < cellY + ROW_H) {
+      Slot slot = this.menu.getSlot(TurtleMenu.TURTLE_START + i);
+      if (x >= slot.x - 1 && x < slot.x + 17 && y >= slot.y - 1 && y < slot.y + 17) {
         return i;
       }
     }
@@ -102,6 +84,16 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
 
   private boolean inStorage(double x, double y) {
     return x >= MARGIN && x < this.width - MARGIN && y >= CONTENT_TOP && y < storageBottom();
+  }
+
+  private boolean overVanillaStorageSlot(double x, double y) {
+    for (int i = TurtleMenu.TURTLE_START; i < TurtleMenu.DISK_END; i++) {
+      Slot slot = this.menu.getSlot(i);
+      if (x >= slot.x - 1 && x < slot.x + 17 && y >= slot.y - 1 && y < slot.y + 17) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @Override
@@ -117,24 +109,23 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
     graphics.fill(left, top, right, top + titleHeight, TITLEBAR_COLOR);
     graphics.text(this.font, "Turtle storage", left + 6, top + 4, TITLE_COLOR);
 
+    graphics.text(this.font, "Inventory", MARGIN + 8, CONTENT_TOP + 20, TITLE_COLOR);
     int hover = cellAt(mouseX, mouseY);
     for (int i = 0; i < TurtleMenu.TURTLE_SIZE; i++) {
-      int x = cellX(i);
-      int y = cellY(i);
+      Slot slot = this.menu.getSlot(TurtleMenu.TURTLE_START + i);
+      graphics.fill(slot.x - 1, slot.y - 1, slot.x + 17, slot.y + 17, BORDER_COLOR);
+      graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, CELL_COLOR);
       if (i == hover) {
-        graphics.fill(x, y, x + cellWidth(), y + ROW_H, HOVER_COLOR);
+        graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, HOVER_COLOR);
       }
-      ItemStack stack = this.menu.turtleItem(i);
-      String label;
-      int color;
-      if (stack.isEmpty()) {
-        label = String.format("%2d: -", i + 1);
-        color = EMPTY_COLOR;
-      } else {
-        label = String.format("%2d: %s x%d", i + 1, itemName(stack), stack.getCount());
-        color = TEXT_COLOR;
-      }
-      graphics.text(this.font, trim(label, cellWidth() - 4), x + 2, y + 2, color);
+    }
+
+    Slot diskSlot = this.menu.getSlot(TurtleMenu.DISK_SLOT);
+    graphics.text(this.font, "Disk", diskSlot.x - 1, diskSlot.y - 10, TITLE_COLOR);
+    graphics.fill(diskSlot.x - 1, diskSlot.y - 1, diskSlot.x + 17, diskSlot.y + 17, BORDER_COLOR);
+    graphics.fill(diskSlot.x, diskSlot.y, diskSlot.x + 16, diskSlot.y + 16, CELL_COLOR);
+    if (this.menu.diskItem().isEmpty()) {
+      graphics.text(this.font, "empty", diskSlot.x - 8, diskSlot.y + 21, EMPTY_COLOR);
     }
 
     int inventoryLeft = (this.width - 9 * SLOT) / 2;
@@ -145,15 +136,6 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
       graphics.fill(slot.x - 1, slot.y - 1, slot.x + 17, slot.y + 17, BORDER_COLOR);
       graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, CELL_COLOR);
     }
-  }
-
-  private static String itemName(ItemStack stack) {
-    return BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
-  }
-
-  private String trim(String text, int maxPx) {
-    int max = Math.max(1, maxPx / 6);
-    return text.length() > max ? text.substring(0, max) : text;
   }
 
   /** Closes the storage menu, then reopens the terminal for this same turtle. */
@@ -168,6 +150,9 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
 
   @Override
   public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+    if (overVanillaStorageSlot(event.x(), event.y())) {
+      return super.mouseClicked(event, doubleClick);
+    }
     pressInStorage = event.button() == 0 && inStorage(event.x(), event.y());
     pressCarriedEmpty = this.menu.getCarried().isEmpty();
     if (pressInStorage) {
@@ -179,6 +164,9 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
   @Override
   public boolean mouseReleased(MouseButtonEvent event) {
     if (event.button() == 0) {
+      if (overVanillaStorageSlot(event.x(), event.y())) {
+        return super.mouseReleased(event);
+      }
       boolean overStorage = inStorage(event.x(), event.y());
       boolean shift = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
       if (pressInStorage && overStorage) {

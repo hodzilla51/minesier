@@ -14,11 +14,8 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Storage menu for a turtle. The player's own inventory uses ordinary vanilla slots (icons, cursor
- * pickup, shift-click, dupe-safe sync — all free). The turtle's 16 slots are also real slots so
- * their contents sync to the client and merge via {@link #moveItemStackTo}, but they live
- * off-screen: the {@link com.hodzilla51.minesier.client.TurtleScreen} draws them as a
- * terminal-style text list and routes clicks through {@code TurtleClickC2S} so dropping anywhere in
- * the box first-fits into the turtle. Edits are blocked while a program is running.
+ * pickup, shift-click, dupe-safe sync — all free). The turtle's 16 storage slots and disk slot are
+ * also real slots, with edits blocked while a program is running.
  */
 public class TurtleMenu extends AbstractContainerMenu {
   public static final int TURTLE_SIZE = 16;
@@ -26,8 +23,15 @@ public class TurtleMenu extends AbstractContainerMenu {
   public static final int PLAYER_END = 36; // 27 main + 9 hotbar
   public static final int TURTLE_START = PLAYER_END;
   public static final int TURTLE_END = TURTLE_START + TURTLE_SIZE;
+  public static final int DISK_SLOT = TURTLE_END;
+  public static final int DISK_END = DISK_SLOT + 1;
 
-  private static final int OFFSCREEN = -3000;
+  private static final int MARGIN = 12;
+  private static final int CONTENT_TOP = 22;
+  private static final int SLOT = 18;
+  private static final int TURTLE_GRID_X = MARGIN + 8;
+  private static final int TURTLE_GRID_Y = CONTENT_TOP + 30;
+  private static final int TURTLE_GRID_COLS = 4;
 
   private final ContainerLevelAccess access;
   private final BlockPos pos;
@@ -38,6 +42,7 @@ public class TurtleMenu extends AbstractContainerMenu {
         id,
         playerInv,
         new SimpleContainer(TURTLE_SIZE),
+        new SimpleContainer(1),
         ContainerLevelAccess.NULL,
         data.pos(),
         data.screenWidth(),
@@ -45,11 +50,13 @@ public class TurtleMenu extends AbstractContainerMenu {
   }
 
   /** Server constructor: backed by the live turtle inventory. */
-  public TurtleMenu(int id, Inventory playerInv, Container turtle, ContainerLevelAccess access) {
+  public TurtleMenu(
+      int id, Inventory playerInv, Container turtle, Container disk, ContainerLevelAccess access) {
     this(
         id,
         playerInv,
         turtle,
+        disk,
         access,
         access.evaluate((level, position) -> position, BlockPos.ZERO),
         0,
@@ -60,6 +67,7 @@ public class TurtleMenu extends AbstractContainerMenu {
       int id,
       Inventory playerInv,
       Container turtle,
+      Container disk,
       ContainerLevelAccess access,
       int screenWidth,
       int screenHeight) {
@@ -67,6 +75,7 @@ public class TurtleMenu extends AbstractContainerMenu {
         id,
         playerInv,
         turtle,
+        disk,
         access,
         access.evaluate((level, position) -> position, BlockPos.ZERO),
         screenWidth,
@@ -77,6 +86,7 @@ public class TurtleMenu extends AbstractContainerMenu {
       int id,
       Inventory playerInv,
       Container turtle,
+      Container disk,
       ContainerLevelAccess access,
       BlockPos pos,
       int screenWidth,
@@ -98,15 +108,37 @@ public class TurtleMenu extends AbstractContainerMenu {
       addSlot(new Slot(playerInv, col, inventoryX + col * 18, inventoryY + 58));
     }
 
-    // Turtle storage: real slots (for sync + merge) parked off-screen; the screen draws them.
+    // Turtle storage: real slots for sync, cursor handling, and shift-click merge.
     for (int i = 0; i < TURTLE_SIZE; i++) {
-      addSlot(new Slot(turtle, i, OFFSCREEN, OFFSCREEN));
+      addSlot(new Slot(turtle, i, turtleSlotX(i), turtleSlotY(i)));
     }
+    addSlot(new DiskSlot(disk, diskSlotX(screenWidth), diskSlotY()));
   }
 
-  /** The current contents of a turtle slot, for the screen's text list. */
+  public static int turtleSlotX(int slot) {
+    return TURTLE_GRID_X + (slot % TURTLE_GRID_COLS) * SLOT;
+  }
+
+  public static int turtleSlotY(int slot) {
+    return TURTLE_GRID_Y + (slot / TURTLE_GRID_COLS) * SLOT;
+  }
+
+  public static int diskSlotX(int screenWidth) {
+    return Math.max(256, screenWidth) - MARGIN - 34;
+  }
+
+  public static int diskSlotY() {
+    return CONTENT_TOP + 30;
+  }
+
+  /** The current contents of a turtle slot. */
   public ItemStack turtleItem(int slot) {
     return getSlot(TURTLE_START + slot).getItem();
+  }
+
+  /** The disk-slot item shown in the storage screen. */
+  public ItemStack diskItem() {
+    return getSlot(DISK_SLOT).getItem();
   }
 
   /** Turtle position associated with this menu, including on the client. */
@@ -186,8 +218,8 @@ public class TurtleMenu extends AbstractContainerMenu {
     ItemStack original = stack.copy();
     boolean moved =
         index < TURTLE_START
-            ? moveItemStackTo(stack, TURTLE_START, TURTLE_END, false) // player -> turtle
-            : moveItemStackTo(stack, PLAYER_START, PLAYER_END, false); // turtle -> player
+            ? moveFromPlayer(stack)
+            : moveItemStackTo(stack, PLAYER_START, PLAYER_END, false); // turtle/disk -> player
     if (!moved) {
       return ItemStack.EMPTY;
     }
@@ -197,5 +229,33 @@ public class TurtleMenu extends AbstractContainerMenu {
       slot.setChanged();
     }
     return original;
+  }
+
+  private boolean moveFromPlayer(ItemStack stack) {
+    if (stack.is(ModContent.DISK) && moveItemStackTo(stack, DISK_SLOT, DISK_END, false)) {
+      return true;
+    }
+    return moveItemStackTo(stack, TURTLE_START, TURTLE_END, false);
+  }
+
+  private static final class DiskSlot extends Slot {
+    DiskSlot(Container container, int x, int y) {
+      super(container, 0, x, y);
+    }
+
+    @Override
+    public boolean mayPlace(ItemStack stack) {
+      return stack.is(ModContent.DISK);
+    }
+
+    @Override
+    public int getMaxStackSize() {
+      return 1;
+    }
+
+    @Override
+    public int getMaxStackSize(ItemStack stack) {
+      return 1;
+    }
   }
 }
