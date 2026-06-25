@@ -167,13 +167,14 @@ public class ComputerScreen extends Screen {
     this.editor.setCharacterLimit(8192);
     addRenderableWidget(this.editor);
 
-    // Bottom row, right-aligned: [path field] Save Load List Eject Run
+    // Bottom row, right-aligned: [path field] Save Load Delete List Eject Run
     int gap = 4;
     int bw = 44;
     int runX = this.width - MARGIN - bw;
     int ejectX = runX - gap - bw;
     int listX = ejectX - gap - bw;
-    int loadX = listX - gap - bw;
+    int deleteX = listX - gap - bw;
+    int loadX = deleteX - gap - bw;
     int saveX = loadX - gap - bw;
     int nameW = saveX - gap - MARGIN;
 
@@ -189,6 +190,10 @@ public class ComputerScreen extends Screen {
     addRenderableWidget(
         Button.builder(Component.literal("Load"), b -> program(ProgramActionC2S.LOAD))
             .bounds(loadX, buttonY, bw, BUTTON_H)
+            .build());
+    addRenderableWidget(
+        Button.builder(Component.literal("Del"), b -> program(ProgramActionC2S.DELETE))
+            .bounds(deleteX, buttonY, bw, BUTTON_H)
             .build());
     addRenderableWidget(
         Button.builder(Component.literal("List"), b -> program(ProgramActionC2S.LIST))
