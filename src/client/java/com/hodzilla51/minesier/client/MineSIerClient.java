@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.client;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.LoadProgramS2C;
 import com.hodzilla51.minesier.net.ProgramListS2C;
+import com.hodzilla51.minesier.net.SwitchStatusS2C;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.hodzilla51.minesier.net.TurtleMoveS2C;
 import com.hodzilla51.minesier.net.TurtleTurnS2C;
@@ -97,6 +98,18 @@ public class MineSIerClient implements ClientModInitializer {
         ProgramListS2C.TYPE,
         (payload, context) ->
             context.client().execute(() -> ComputerScreen.showPrograms(payload.names())));
+
+    ClientPlayNetworking.registerGlobalReceiver(
+        SwitchStatusS2C.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(
+                    () ->
+                        context
+                            .client()
+                            .setScreenAndShow(
+                                new SwitchStatusScreen(payload.pos(), payload.status()))));
 
     // The vanilla storage menu for turtles renders through our terminal-styled screen.
     MenuScreens.register(ModContent.TURTLE_MENU, TurtleScreen::new);

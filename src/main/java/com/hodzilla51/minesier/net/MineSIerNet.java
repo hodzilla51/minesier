@@ -43,6 +43,7 @@ public final class MineSIerNet {
     PayloadTypeRegistry.clientboundPlay().register(TurtleVisualS2C.TYPE, TurtleVisualS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(LoadProgramS2C.TYPE, LoadProgramS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(ProgramListS2C.TYPE, ProgramListS2C.CODEC);
+    PayloadTypeRegistry.clientboundPlay().register(SwitchStatusS2C.TYPE, SwitchStatusS2C.CODEC);
   }
 
   /** Pushes the disk's program names to the player's open terminal (for the file tree pane). */
