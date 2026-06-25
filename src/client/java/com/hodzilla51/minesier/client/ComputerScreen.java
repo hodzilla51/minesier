@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.client;
 
+import com.hodzilla51.minesier.net.OpenTurtleEquipmentC2S;
 import com.hodzilla51.minesier.net.OpenTurtleInventoryC2S;
 import com.hodzilla51.minesier.net.ProgramActionC2S;
 import com.hodzilla51.minesier.net.RunCommandC2S;
@@ -141,6 +142,10 @@ public class ComputerScreen extends Screen {
           Button.builder(Component.literal("Inventory"), b -> openInventory())
               .bounds(MARGIN, 2, 80, 16)
               .build());
+      addRenderableWidget(
+          Button.builder(Component.literal("Equipment"), b -> openEquipment())
+              .bounds(MARGIN + 84, 2, 90, 16)
+              .build());
     }
 
     int contentLeft = MARGIN + PANE_W + PANE_GAP;
@@ -205,6 +210,10 @@ public class ComputerScreen extends Screen {
   /** Asks the server to open the turtle's vanilla storage menu (replaces this screen). */
   private void openInventory() {
     ClientPlayNetworking.send(new OpenTurtleInventoryC2S(this.pos, this.width, this.height));
+  }
+
+  private void openEquipment() {
+    ClientPlayNetworking.send(new OpenTurtleEquipmentC2S(this.pos, this.width, this.height));
   }
 
   private void program(int action) {

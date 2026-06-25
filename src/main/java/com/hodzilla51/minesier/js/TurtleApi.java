@@ -1,6 +1,7 @@
 package com.hodzilla51.minesier.js;
 
 import com.hodzilla51.minesier.net.TurtleVisualAction;
+import java.util.List;
 
 /**
  * The world-facing actions a turtle program can call, exposed to scripts as the {@code turtle}
@@ -13,6 +14,10 @@ public interface TurtleApi {
   boolean forward();
 
   boolean back();
+
+  boolean up();
+
+  boolean down();
 
   boolean turnLeft();
 
@@ -57,6 +62,24 @@ public interface TurtleApi {
   /** Adds fuel (creative placeholder until inventory-based refuel lands). */
   void refuel(int amount);
 
+  /** Top-module scan result. Empty when no scan-capable module is equipped or scanning fails. */
+  default List<ScanResult> scan() {
+    return List.of();
+  }
+
   /** Emits a renderer-only status effect; used internally for execution errors. */
   void visual(TurtleVisualAction action, String detail);
+
+  /** Server-side pacing hook; not exposed to JavaScript. */
+  default int actionTicks(String op, Object[] args, int defaultTicks) {
+    return defaultTicks;
+  }
+
+  /** Server-side action progress hook; not exposed to JavaScript. */
+  default void actionProgress(String op, Object[] args, int elapsedTicks, int totalTicks) {}
+
+  /** Clears any server-side progress visuals for the action. */
+  default void clearActionProgress(String op, Object[] args) {}
+
+  record ScanResult(int x, int y, int z, String block) {}
 }

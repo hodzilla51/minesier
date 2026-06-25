@@ -48,7 +48,7 @@ public class MineSIerClient implements ClientModInitializer {
                           context.client().level != null
                               ? context.client().level.getGameTime()
                               : 0L;
-                      TurtleAnimations.begin(payload.pos(), fromDir, tick);
+                      TurtleAnimations.begin(payload.pos(), fromDir, tick, payload.durationTicks());
                     }));
 
     // Server signals a turtle turn: ease the model from its previous heading.
@@ -100,6 +100,7 @@ public class MineSIerClient implements ClientModInitializer {
 
     // The vanilla storage menu for turtles renders through our terminal-styled screen.
     MenuScreens.register(ModContent.TURTLE_MENU, TurtleScreen::new);
+    MenuScreens.register(ModContent.TURTLE_EQUIPMENT_MENU, TurtleEquipmentScreen::new);
 
     // The turtle block is INVISIBLE; this renderer draws it (and slides it on moves).
     BlockEntityRendererRegistry.register(

@@ -79,7 +79,7 @@ public class TurtleBlockEntityRenderer
 
     TurtleAnimations.Slide slide = TurtleAnimations.get(pos);
     if (slide != null) {
-      float progress = (gameTime + partialTick - slide.startTick()) / TurtleBrain.PACE_TICKS;
+      float progress = (gameTime + partialTick - slide.startTick()) / slide.durationTicks();
       if (progress >= 0f && progress < 1f) {
         applyHop(state, slide.fromDir(), progress);
         state.screenText = "<>";

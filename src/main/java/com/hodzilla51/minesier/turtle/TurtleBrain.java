@@ -34,6 +34,10 @@ public final class TurtleBrain {
           PACE_TICKS,
           "back",
           PACE_TICKS,
+          "up",
+          PACE_TICKS,
+          "down",
+          PACE_TICKS,
           "dig",
           PACE_TICKS,
           "place",
@@ -57,6 +61,7 @@ public final class TurtleBrain {
   private boolean resultReady;
   private boolean executing;
   private int ticksLeft;
+  private int actionTicksTotal;
   private Object result;
   private volatile boolean aborted;
   private volatile boolean finished;
@@ -119,7 +124,13 @@ public final class TurtleBrain {
    */
   public void tick() {
     synchronized (lock) {
-      if (finished || aborted || !reqPending) {
+      if (aborted) {
+        if (executing) {
+          world.clearActionProgress(op, args);
+        }
+        return;
+      }
+      if (finished || !reqPending) {
         return;
       }
       if (!executing) {
@@ -127,13 +138,26 @@ public final class TurtleBrain {
         ticksLeft = PACE.getOrDefault(op, 0);
         if ("wait".equals(op)) {
           ticksLeft = Math.clamp((int) args[0], 0, MAX_WAIT_TICKS);
+        } else {
+          ticksLeft = world.actionTicks(op, args, ticksLeft);
         }
-        // Perform the world effect at the START so the move/animation plays over the pacing.
-        result = perform(op, args);
+        actionTicksTotal = ticksLeft;
+        if (performAtStart(op)) {
+          // Movement/turn effects happen at the start so the client can animate from the old
+          // state toward the already-authoritative server state.
+          result = perform(op, args);
+        }
       }
       if (ticksLeft > 0) {
+        if (!performAtStart(op)) {
+          world.actionProgress(op, args, actionTicksTotal - ticksLeft, actionTicksTotal);
+        }
         ticksLeft--;
         return;
+      }
+      if (!performAtStart(op)) {
+        result = perform(op, args);
+        world.clearActionProgress(op, args);
       }
       reqPending = false;
       executing = false;
@@ -142,11 +166,20 @@ public final class TurtleBrain {
     }
   }
 
+  private boolean performAtStart(String op) {
+    return switch (op) {
+      case "forward", "back", "up", "down", "turnLeft", "turnRight" -> true;
+      default -> false;
+    };
+  }
+
   /** Runs on the server thread — the only place the world is touched. */
   private Object perform(String op, Object[] args) {
     return switch (op) {
       case "forward" -> world.forward();
       case "back" -> world.back();
+      case "up" -> world.up();
+      case "down" -> world.down();
       case "turnLeft" -> world.turnLeft();
       case "turnRight" -> world.turnRight();
       case "dig" -> world.dig();
@@ -165,6 +198,7 @@ public final class TurtleBrain {
       case "detect" -> world.detect();
       case "inspect" -> world.inspect();
       case "getFuelLevel" -> world.getFuelLevel();
+      case "scan" -> world.scan();
       case "refuel" -> {
         world.refuel((int) args[0]);
         yield null;
@@ -184,6 +218,16 @@ public final class TurtleBrain {
         @Override
         public boolean back() {
           return (Boolean) call("back");
+        }
+
+        @Override
+        public boolean up() {
+          return (Boolean) call("up");
+        }
+
+        @Override
+        public boolean down() {
+          return (Boolean) call("down");
         }
 
         @Override
@@ -254,6 +298,13 @@ public final class TurtleBrain {
         @Override
         public void refuel(int amount) {
           call("refuel", amount);
+        }
+
+        @Override
+        public java.util.List<ScanResult> scan() {
+          @SuppressWarnings("unchecked")
+          java.util.List<ScanResult> results = (java.util.List<ScanResult>) call("scan");
+          return results;
         }
       };
 

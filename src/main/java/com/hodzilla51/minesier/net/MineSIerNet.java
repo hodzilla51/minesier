@@ -3,6 +3,8 @@ package com.hodzilla51.minesier.net;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.ProgramStore;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
+import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
+import com.hodzilla51.minesier.menu.TurtleEquipmentMenuProvider;
 import com.hodzilla51.minesier.menu.TurtleMenu;
 import com.hodzilla51.minesier.menu.TurtleMenuProvider;
 import com.hodzilla51.minesier.turtle.TurtleManager;
@@ -29,6 +31,8 @@ public final class MineSIerNet {
     PayloadTypeRegistry.serverboundPlay().register(ProgramActionC2S.TYPE, ProgramActionC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(OpenTurtleInventoryC2S.TYPE, OpenTurtleInventoryC2S.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(OpenTurtleEquipmentC2S.TYPE, OpenTurtleEquipmentC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(OpenTurtleTerminalC2S.TYPE, OpenTurtleTerminalC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay().register(TurtleClickC2S.TYPE, TurtleClickC2S.CODEC);
@@ -67,6 +71,12 @@ public final class MineSIerNet {
           context.server().execute(() -> handleOpenInventory(player, payload));
         });
     ServerPlayNetworking.registerGlobalReceiver(
+        OpenTurtleEquipmentC2S.TYPE,
+        (payload, context) -> {
+          ServerPlayer player = context.player();
+          context.server().execute(() -> handleOpenEquipment(player, payload));
+        });
+    ServerPlayNetworking.registerGlobalReceiver(
         TurtleClickC2S.TYPE,
         (payload, context) -> {
           ServerPlayer player = context.player();
@@ -91,6 +101,18 @@ public final class MineSIerNet {
     player.openMenu(new TurtleMenuProvider(turtle, pos, p.screenWidth(), p.screenHeight()));
   }
 
+  private static void handleOpenEquipment(ServerPlayer player, OpenTurtleEquipmentC2S p) {
+    Level level = player.level();
+    BlockPos pos = p.pos();
+    if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
+        || !(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)
+        || TurtleManager.isRunning(level, pos)) {
+      return;
+    }
+    player.openMenu(
+        new TurtleEquipmentMenuProvider(turtle, pos, p.screenWidth(), p.screenHeight()));
+  }
+
   private static void handleTurtleClick(ServerPlayer player, TurtleClickC2S p) {
     // The menu validates reach + running state and owns the dupe-safe carried stack.
     if (player.containerMenu instanceof TurtleMenu menu) {
@@ -110,7 +132,7 @@ public final class MineSIerNet {
         || TurtleManager.isRunning(level, pos)) {
       return;
     }
-    if (player.containerMenu instanceof TurtleMenu menu && menu.turtlePos().equals(pos)) {
+    if (isTurtleMenuAt(player, pos)) {
       // Do not send the normal close-menu packet: it briefly drops the client to the world,
       // recapturing and recentering the mouse before TerminalScreenS2C arrives.
       player.doCloseContainer();
@@ -118,6 +140,16 @@ public final class MineSIerNet {
     ServerPlayNetworking.send(
         player, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
     sendProgramList(player, turtle);
+  }
+
+  private static boolean isTurtleMenuAt(ServerPlayer player, BlockPos pos) {
+    if (player.containerMenu instanceof TurtleMenu menu) {
+      return menu.turtlePos().equals(pos);
+    }
+    if (player.containerMenu instanceof TurtleEquipmentMenu menu) {
+      return menu.turtlePos().equals(pos);
+    }
+    return false;
   }
 
   private static void handleProgram(ServerPlayer player, ProgramActionC2S p) {

@@ -28,8 +28,15 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
   private static final String KEY_FUEL = "Fuel";
   private static final String KEY_SELECTED = "SelectedSlot";
   private static final String KEY_DISK = "Disk";
+  private static final String KEY_FOOT = "FootEquipment";
+  private static final String KEY_ARM = "ArmEquipment";
+  private static final String KEY_TOP = "TopEquipment";
   private static final String KEY_ADDRESS = "NetworkAddress";
   private static final int INVENTORY_SIZE = 16;
+  public static final int EQUIPMENT_SIZE = 3;
+  public static final int EQUIPMENT_FOOT = 0;
+  public static final int EQUIPMENT_ARM = 1;
+  public static final int EQUIPMENT_TOP = 2;
   private static final int DEFAULT_FUEL = 1000;
   private static final String WELCOME = "MineSIer turtle — try turtle.forward()";
 
@@ -39,6 +46,7 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
   private NonNullList<ItemStack> inventory = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
   private int selectedSlot = 0;
   private ItemStack disk = ItemStack.EMPTY;
+  private NonNullList<ItemStack> equipment = NonNullList.withSize(EQUIPMENT_SIZE, ItemStack.EMPTY);
   private TurtleNetworkState network = new TurtleNetworkState();
 
   public TurtleBlockEntity(BlockPos pos, BlockState state) {
@@ -55,6 +63,15 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 
   public NonNullList<ItemStack> getInventory() {
     return inventory;
+  }
+
+  public NonNullList<ItemStack> getEquipment() {
+    return equipment;
+  }
+
+  public void setEquipment(NonNullList<ItemStack> equipment) {
+    this.equipment = copyEquipment(equipment);
+    setChanged();
   }
 
   public int getSelectedSlot() {
@@ -115,12 +132,14 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
       JsComputer vm,
       int fuel,
       NonNullList<ItemStack> inventory,
+      NonNullList<ItemStack> equipment,
       int selectedSlot,
       ItemStack disk,
       String transcript) {
     this.vm = vm;
     this.fuel = fuel;
     this.inventory = inventory;
+    this.equipment = copyEquipment(equipment);
     this.selectedSlot = selectedSlot;
     this.disk = disk;
     this.transcript.clear();
@@ -143,6 +162,10 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
     this.inventory = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
     ContainerHelper.loadAllItems(in, this.inventory);
     this.disk = in.read(KEY_DISK, ItemStack.CODEC).orElse(ItemStack.EMPTY);
+    this.equipment = NonNullList.withSize(EQUIPMENT_SIZE, ItemStack.EMPTY);
+    this.equipment.set(EQUIPMENT_FOOT, in.read(KEY_FOOT, ItemStack.CODEC).orElse(ItemStack.EMPTY));
+    this.equipment.set(EQUIPMENT_ARM, in.read(KEY_ARM, ItemStack.CODEC).orElse(ItemStack.EMPTY));
+    this.equipment.set(EQUIPMENT_TOP, in.read(KEY_TOP, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.network.setNetworkAddress(in.getStringOr(KEY_ADDRESS, network.getNetworkAddress()));
   }
 
@@ -156,6 +179,23 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
     if (!disk.isEmpty()) {
       out.store(KEY_DISK, ItemStack.CODEC, disk);
     }
+    storeEquipment(out, KEY_FOOT, equipment.get(EQUIPMENT_FOOT));
+    storeEquipment(out, KEY_ARM, equipment.get(EQUIPMENT_ARM));
+    storeEquipment(out, KEY_TOP, equipment.get(EQUIPMENT_TOP));
     out.putString(KEY_ADDRESS, network.getNetworkAddress());
+  }
+
+  private static void storeEquipment(ValueOutput out, String key, ItemStack stack) {
+    if (!stack.isEmpty()) {
+      out.store(key, ItemStack.CODEC, stack);
+    }
+  }
+
+  private static NonNullList<ItemStack> copyEquipment(NonNullList<ItemStack> source) {
+    NonNullList<ItemStack> copy = NonNullList.withSize(EQUIPMENT_SIZE, ItemStack.EMPTY);
+    for (int i = 0; i < Math.min(EQUIPMENT_SIZE, source.size()); i++) {
+      copy.set(i, source.get(i).copy());
+    }
+    return copy;
   }
 }

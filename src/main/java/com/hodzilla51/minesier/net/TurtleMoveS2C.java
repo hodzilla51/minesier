@@ -12,7 +12,8 @@ import net.minecraft.resources.Identifier;
  * net.minecraft.core.Direction} ordinal pointing back toward where it came). The client uses this
  * to slide the turtle smoothly into place over the move's duration.
  */
-public record TurtleMoveS2C(BlockPos pos, int fromDir) implements CustomPacketPayload {
+public record TurtleMoveS2C(BlockPos pos, int fromDir, int durationTicks)
+    implements CustomPacketPayload {
   public static final Type<TurtleMoveS2C> TYPE =
       new Type<>(Identifier.fromNamespaceAndPath("minesier", "turtle_move"));
 
@@ -22,6 +23,8 @@ public record TurtleMoveS2C(BlockPos pos, int fromDir) implements CustomPacketPa
           TurtleMoveS2C::pos,
           ByteBufCodecs.VAR_INT,
           TurtleMoveS2C::fromDir,
+          ByteBufCodecs.VAR_INT,
+          TurtleMoveS2C::durationTicks,
           TurtleMoveS2C::new);
 
   @Override

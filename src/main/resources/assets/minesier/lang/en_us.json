@@ -6,5 +6,9 @@
   "block.minesier.turtle": "Turtle",
   "block.minesier.monitor": "Monitor",
   "item.minesier.disk": "Disk",
+  "item.minesier.wheel_foot_part": "Wheel Foot Part",
+  "item.minesier.crawler_foot_part": "Crawler Foot Part",
+  "item.minesier.hover_foot_part": "Hover Foot Part",
+  "item.minesier.proximity_sensor_module": "Proximity Sensor Module",
   "itemGroup.minesier.main": "MineSIer"
 }

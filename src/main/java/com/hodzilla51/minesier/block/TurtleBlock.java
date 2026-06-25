@@ -74,6 +74,7 @@ public class TurtleBlock extends BaseEntityBlock {
     // Spill the turtle's inventory when a player breaks it (block hops never call this).
     if (!level.isClientSide() && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
       Containers.dropContents(level, pos, turtle.getInventory());
+      Containers.dropContents(level, pos, turtle.getEquipment());
     }
     return super.playerWillDestroy(level, pos, state, player);
   }

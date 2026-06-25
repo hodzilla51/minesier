@@ -18,7 +18,7 @@ public final class TurtleAnimations {
   public static final long EFFECT_TICKS = 12L;
   private static final int MAX_EFFECTS_PER_TURTLE = 12;
 
-  public record Slide(Direction fromDir, long startTick) {}
+  public record Slide(Direction fromDir, long startTick, int durationTicks) {}
 
   /** A turn in progress: how many degrees to ease away from the (already-final) facing. */
   public record Turn(float deltaDeg, long startTick) {}
@@ -32,8 +32,8 @@ public final class TurtleAnimations {
 
   private TurtleAnimations() {}
 
-  public static void begin(BlockPos pos, Direction fromDir, long clientTick) {
-    SLIDES.put(pos.immutable(), new Slide(fromDir, clientTick));
+  public static void begin(BlockPos pos, Direction fromDir, long clientTick, int durationTicks) {
+    SLIDES.put(pos.immutable(), new Slide(fromDir, clientTick, Math.max(1, durationTicks)));
   }
 
   public static Slide get(BlockPos pos) {

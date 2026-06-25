@@ -58,6 +58,11 @@ public final class TurtleManager {
     for (int i = 0; i < inventory.size(); i++) {
       inventory.set(i, be.getInventory().get(i).copy());
     }
+    NonNullList<ItemStack> equipment =
+        NonNullList.withSize(TurtleBlockEntity.EQUIPMENT_SIZE, ItemStack.EMPTY);
+    for (int i = 0; i < equipment.size(); i++) {
+      equipment.set(i, be.getEquipment().get(i).copy());
+    }
     Direction facing = level.getBlockState(pos).getValue(TurtleBlock.FACING);
     TurtleNetworkState network = be.getNetwork();
     if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
@@ -67,7 +72,7 @@ public final class TurtleManager {
     vm.setModuleLoader(be::loadProgram);
     TurtleAccess world =
         new TurtleAccess(
-            level, pos, facing, be.getFuel(), inventory, be.getSelectedSlot(), network);
+            level, pos, facing, be.getFuel(), inventory, equipment, be.getSelectedSlot(), network);
     TurtleBrain brain = new TurtleBrain(vm, world, command);
 
     List<String> base = new ArrayList<>(List.of(be.getTranscript().split("\n", -1)));
@@ -115,7 +120,14 @@ public final class TurtleManager {
 
     // Facing already lives in the block's state (updated as the turtle turned/moved).
     if (r.level.getBlockEntity(endPos) instanceof TurtleBlockEntity end) {
-      end.applyResult(r.vm, fuel, r.world.inventory(), r.world.selectedSlot(), r.disk, transcript);
+      end.applyResult(
+          r.vm,
+          fuel,
+          r.world.inventory(),
+          r.world.equipment(),
+          r.world.selectedSlot(),
+          r.disk,
+          transcript);
     }
     ServerPlayNetworking.send(r.player, new TerminalScreenS2C(endPos, transcript, false));
   }

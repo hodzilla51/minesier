@@ -12,6 +12,7 @@ import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.block.WirelessModemBlock;
 import com.hodzilla51.minesier.block.WirelessModemBlockEntity;
 import com.hodzilla51.minesier.item.DiskContents;
+import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
 import com.hodzilla51.minesier.menu.TurtleMenu;
 import com.hodzilla51.minesier.menu.TurtleMenuData;
 import java.util.function.Function;
@@ -46,6 +47,8 @@ public final class ModContent {
       Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "switch");
   public static final Identifier TURTLE_ID =
       Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "turtle");
+  public static final Identifier TURTLE_EQUIPMENT_ID =
+      Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "turtle_equipment");
   public static final Identifier WIRELESS_MODEM_ID =
       Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "wireless_modem");
   public static final Identifier MONITOR_ID =
@@ -78,6 +81,14 @@ public final class ModContent {
           new ExtendedMenuType<TurtleMenu, TurtleMenuData>(
               TurtleMenu::new, TurtleMenuData.STREAM_CODEC));
 
+  /** Equipment menu for turtle foot, arm, and top extension slots. */
+  public static final MenuType<TurtleEquipmentMenu> TURTLE_EQUIPMENT_MENU =
+      Registry.register(
+          BuiltInRegistries.MENU,
+          TURTLE_EQUIPMENT_ID,
+          new ExtendedMenuType<TurtleEquipmentMenu, TurtleMenuData>(
+              TurtleEquipmentMenu::new, TurtleMenuData.STREAM_CODEC));
+
   /** Data component carrying a disk's program files (travels with the disk item). */
   public static final DataComponentType<DiskContents> DISK_CONTENTS =
       Registry.register(
@@ -90,6 +101,12 @@ public final class ModContent {
 
   /** A floppy-style disk: portable storage for programs. */
   public static final Item DISK = registerDisk();
+
+  public static final Item WHEEL_FOOT_PART = registerSimpleItem("wheel_foot_part", 1);
+  public static final Item CRAWLER_FOOT_PART = registerSimpleItem("crawler_foot_part", 1);
+  public static final Item HOVER_FOOT_PART = registerSimpleItem("hover_foot_part", 1);
+  public static final Item PROXIMITY_SENSOR_MODULE =
+      registerSimpleItem("proximity_sensor_module", 1);
 
   /** Creative tab gathering all MineSIer content. */
   public static final CreativeModeTab TAB = registerTab();
@@ -109,6 +126,10 @@ public final class ModContent {
                   output.accept(MONITOR_BLOCK);
                   output.accept(TURTLE_BLOCK);
                   output.accept(DISK);
+                  output.accept(WHEEL_FOOT_PART);
+                  output.accept(CRAWLER_FOOT_PART);
+                  output.accept(HOVER_FOOT_PART);
+                  output.accept(PROXIMITY_SENSOR_MODULE);
                 })
             .build();
     return Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, id, tab);
@@ -125,6 +146,15 @@ public final class ModContent {
                 .setId(key)
                 .stacksTo(1)
                 .component(DISK_CONTENTS, DiskContents.EMPTY)));
+  }
+
+  private static Item registerSimpleItem(String path, int maxStackSize) {
+    Identifier id = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, path);
+    ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id);
+    return Registry.register(
+        BuiltInRegistries.ITEM,
+        id,
+        new Item(new Item.Properties().setId(key).stacksTo(maxStackSize)));
   }
 
   private static Block registerBlock(

@@ -8,6 +8,7 @@ import com.hodzilla51.minesier.net.TurtleTurnS2C;
 import com.hodzilla51.minesier.net.TurtleVisualAction;
 import com.hodzilla51.minesier.net.TurtleVisualS2C;
 import com.hodzilla51.minesier.turtle.TurtleNetworkState;
+import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -18,6 +19,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -36,6 +38,7 @@ public class TurtleAccess implements TurtleApi {
   private Direction facing;
   private int fuel;
   private final NonNullList<ItemStack> inventory;
+  private final NonNullList<ItemStack> equipment;
   private int selectedSlot;
   private final TurtleNetworkState network;
 
@@ -45,6 +48,7 @@ public class TurtleAccess implements TurtleApi {
       Direction facing,
       int fuel,
       NonNullList<ItemStack> inventory,
+      NonNullList<ItemStack> equipment,
       int selectedSlot,
       TurtleNetworkState network) {
     this.level = level;
@@ -52,6 +56,7 @@ public class TurtleAccess implements TurtleApi {
     this.facing = facing;
     this.fuel = fuel;
     this.inventory = inventory;
+    this.equipment = equipment;
     this.selectedSlot = selectedSlot;
     this.network = network;
     if (level instanceof ServerLevel serverLevel) {
@@ -75,6 +80,10 @@ public class TurtleAccess implements TurtleApi {
     return inventory;
   }
 
+  public NonNullList<ItemStack> equipment() {
+    return equipment;
+  }
+
   public int selectedSlot() {
     return selectedSlot;
   }
@@ -87,6 +96,51 @@ public class TurtleAccess implements TurtleApi {
   @Override
   public boolean back() {
     return move(facing.getOpposite());
+  }
+
+  @Override
+  public boolean up() {
+    return move(Direction.UP);
+  }
+
+  @Override
+  public boolean down() {
+    return move(Direction.DOWN);
+  }
+
+  @Override
+  public int actionTicks(String op, Object[] args, int defaultTicks) {
+    return switch (op) {
+      case "forward" -> movementCost(facing).ticks();
+      case "back" -> movementCost(facing.getOpposite()).ticks();
+      case "up" -> movementCost(Direction.UP).ticks();
+      case "down" -> movementCost(Direction.DOWN).ticks();
+      case "dig" -> digTicks(defaultTicks);
+      case "scan" -> hasProximitySensor() ? 20 : 0;
+      default -> defaultTicks;
+    };
+  }
+
+  @Override
+  public void actionProgress(String op, Object[] args, int elapsedTicks, int totalTicks) {
+    if (!"dig".equals(op) || totalTicks <= 0 || !(level instanceof ServerLevel serverLevel)) {
+      return;
+    }
+    BlockPos target = pos.relative(facing);
+    if (level.getBlockState(target).canBeReplaced()) {
+      clearDigProgress(serverLevel, target);
+      return;
+    }
+    int stage = Math.clamp((elapsedTicks * 10) / totalTicks, 0, 9);
+    serverLevel.destroyBlockProgress(digProgressId(target), target, stage);
+  }
+
+  @Override
+  public void clearActionProgress(String op, Object[] args) {
+    if (!"dig".equals(op) || !(level instanceof ServerLevel serverLevel)) {
+      return;
+    }
+    clearDigProgress(serverLevel, pos.relative(facing));
   }
 
   @Override
@@ -125,10 +179,11 @@ public class TurtleAccess implements TurtleApi {
       return false; // nothing solid to dig
     }
     String pickupDetail = "GET";
+    ItemStack tool = armTool();
     // Collect the block's drops into the turtle's inventory (overflow pops into the world).
     if (level instanceof ServerLevel serverLevel) {
       List<ItemStack> drops =
-          Block.getDrops(state, serverLevel, target, level.getBlockEntity(target));
+          Block.getDrops(state, serverLevel, target, level.getBlockEntity(target), null, tool);
       for (ItemStack drop : drops) {
         if (!drop.isEmpty()) {
           pickupDetail = BuiltInRegistries.ITEM.getKey(drop.getItem()).toString();
@@ -142,10 +197,55 @@ public class TurtleAccess implements TurtleApi {
     boolean destroyed =
         level.destroyBlock(target, false, null, 512); // false: we already took drops
     if (destroyed) {
+      damageArmTool(state, target);
       emitVisual(TurtleVisualAction.DIG, "DIG");
       emitVisual(TurtleVisualAction.PICKUP, pickupDetail);
     }
     return destroyed;
+  }
+
+  private ItemStack armTool() {
+    return equipment.get(TurtleBlockEntity.EQUIPMENT_ARM);
+  }
+
+  private int digTicks(int defaultTicks) {
+    BlockPos target = pos.relative(facing);
+    BlockState state = level.getBlockState(target);
+    if (state.canBeReplaced()) {
+      return defaultTicks;
+    }
+    float hardness = state.getDestroySpeed(level, target);
+    if (hardness < 0f) {
+      return defaultTicks;
+    }
+    ItemStack tool = armTool();
+    float speed = Math.max(1.0f, tool.getDestroySpeed(state));
+    boolean correctTool = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
+    float divisor = correctTool ? 30.0f : 100.0f;
+    int ticks = (int) Math.ceil((hardness * divisor) / speed);
+    return Math.max(1, ticks);
+  }
+
+  private void damageArmTool(BlockState state, BlockPos target) {
+    ItemStack tool = armTool();
+    if (tool.isEmpty() || !tool.isDamageableItem() || state.getDestroySpeed(level, target) <= 0f) {
+      return;
+    }
+    if (level instanceof ServerLevel serverLevel) {
+      tool.hurtAndBreak(
+          1,
+          serverLevel,
+          null,
+          ignored -> equipment.set(TurtleBlockEntity.EQUIPMENT_ARM, ItemStack.EMPTY));
+    }
+  }
+
+  private void clearDigProgress(ServerLevel serverLevel, BlockPos target) {
+    serverLevel.destroyBlockProgress(digProgressId(target), target, -1);
+  }
+
+  private int digProgressId(BlockPos target) {
+    return 0x4D510000 ^ pos.hashCode() ^ target.hashCode();
   }
 
   @Override
@@ -256,8 +356,42 @@ public class TurtleAccess implements TurtleApi {
     }
   }
 
+  @Override
+  public List<ScanResult> scan() {
+    if (!hasProximitySensor()) {
+      return List.of();
+    }
+    if (fuel < 1) {
+      emitVisual(TurtleVisualAction.OUT_OF_FUEL, "!");
+      return List.of();
+    }
+    fuel--;
+    List<ScanResult> results = new ArrayList<>();
+    for (int dx = -3; dx <= 3; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        for (int dz = -3; dz <= 3; dz++) {
+          if (dx == 0 && dy == 0 && dz == 0) {
+            continue;
+          }
+          BlockPos scanPos = pos.offset(dx, dy, dz);
+          if (!level.isLoaded(scanPos)) {
+            continue;
+          }
+          BlockState state = level.getBlockState(scanPos);
+          if (state.isAir()) {
+            continue;
+          }
+          String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+          results.add(new ScanResult(dx, dy, dz, blockId));
+        }
+      }
+    }
+    return results;
+  }
+
   private boolean move(Direction direction) {
-    if (fuel <= 0) {
+    MovementCost cost = movementCost(direction);
+    if (fuel < cost.fuel()) {
       emitVisual(TurtleVisualAction.OUT_OF_FUEL, "!");
       return false; // out of fuel
     }
@@ -271,21 +405,163 @@ public class TurtleAccess implements TurtleApi {
         3);
     if (level.getBlockEntity(target) instanceof TurtleBlockEntity turtle) {
       turtle.adoptNetwork(network);
+      turtle.setEquipment(equipment);
     }
     level.removeBlock(pos, false);
     // Tell nearby clients to slide the turtle in from where it came (smooth animation).
     if (level instanceof ServerLevel serverLevel) {
       int fromDir = direction.getOpposite().ordinal();
       for (ServerPlayer player : PlayerLookup.tracking(serverLevel, target)) {
-        ServerPlayNetworking.send(player, new TurtleMoveS2C(target, fromDir));
+        ServerPlayNetworking.send(player, new TurtleMoveS2C(target, fromDir, cost.ticks()));
       }
     }
     pos = target;
     if (level instanceof ServerLevel serverLevel) {
       network.attach(serverLevel, pos, facing);
     }
-    fuel--;
+    fuel -= cost.fuel();
     return true;
+  }
+
+  private MovementCost movementCost(Direction direction) {
+    FootProfile profile = footProfile();
+    if (!isGrounded()) {
+      return profile.airborne();
+    }
+    if (direction.getAxis().isVertical()) {
+      return profile.verticalGrounded();
+    }
+    return profile.horizontal(terrainBelow());
+  }
+
+  private boolean isGrounded() {
+    return !level.getBlockState(pos.below()).canBeReplaced();
+  }
+
+  private Terrain terrainBelow() {
+    BlockState state = level.getBlockState(pos.below());
+    if (state.is(BlockTags.MINEABLE_WITH_PICKAXE)) {
+      return Terrain.PICKAXE;
+    }
+    if (state.is(BlockTags.MINEABLE_WITH_SHOVEL)) {
+      return Terrain.SHOVEL;
+    }
+    if (state.is(BlockTags.MINEABLE_WITH_AXE)) {
+      return Terrain.AXE;
+    }
+    if (state.is(BlockTags.MINEABLE_WITH_HOE)) {
+      return Terrain.HOE;
+    }
+    return Terrain.OTHER;
+  }
+
+  private FootProfile footProfile() {
+    ItemStack foot = equipment.get(TurtleBlockEntity.EQUIPMENT_FOOT);
+    if (foot.is(ModContent.WHEEL_FOOT_PART)) {
+      return FootProfile.WHEEL;
+    }
+    if (foot.is(ModContent.CRAWLER_FOOT_PART)) {
+      return FootProfile.CRAWLER;
+    }
+    if (foot.is(ModContent.HOVER_FOOT_PART)) {
+      return FootProfile.HOVER;
+    }
+    return FootProfile.NONE;
+  }
+
+  private boolean hasProximitySensor() {
+    return equipment.get(TurtleBlockEntity.EQUIPMENT_TOP).is(ModContent.PROXIMITY_SENSOR_MODULE);
+  }
+
+  private enum Terrain {
+    PICKAXE,
+    SHOVEL,
+    AXE,
+    HOE,
+    OTHER
+  }
+
+  private record MovementCost(int ticks, int fuel) {}
+
+  private enum FootProfile {
+    NONE {
+      @Override
+      MovementCost horizontal(Terrain terrain) {
+        return new MovementCost(24, 1);
+      }
+
+      @Override
+      MovementCost verticalGrounded() {
+        return new MovementCost(32, 2);
+      }
+
+      @Override
+      MovementCost airborne() {
+        return new MovementCost(48, 3);
+      }
+    },
+    WHEEL {
+      @Override
+      MovementCost horizontal(Terrain terrain) {
+        return switch (terrain) {
+          case PICKAXE -> new MovementCost(8, 1);
+          case SHOVEL -> new MovementCost(16, 1);
+          case AXE, HOE, OTHER -> new MovementCost(14, 1);
+        };
+      }
+
+      @Override
+      MovementCost verticalGrounded() {
+        return new MovementCost(32, 2);
+      }
+
+      @Override
+      MovementCost airborne() {
+        return new MovementCost(40, 3);
+      }
+    },
+    CRAWLER {
+      @Override
+      MovementCost horizontal(Terrain terrain) {
+        return switch (terrain) {
+          case PICKAXE -> new MovementCost(14, 1);
+          case SHOVEL -> new MovementCost(11, 1);
+          case AXE, HOE, OTHER -> new MovementCost(14, 1);
+        };
+      }
+
+      @Override
+      MovementCost verticalGrounded() {
+        return new MovementCost(22, 2);
+      }
+
+      @Override
+      MovementCost airborne() {
+        return new MovementCost(36, 3);
+      }
+    },
+    HOVER {
+      @Override
+      MovementCost horizontal(Terrain terrain) {
+        return new MovementCost(12, 2);
+      }
+
+      @Override
+      MovementCost verticalGrounded() {
+        return new MovementCost(12, 2);
+      }
+
+      @Override
+      MovementCost airborne() {
+        return new MovementCost(12, 2);
+      }
+    };
+
+    abstract MovementCost horizontal(Terrain terrain);
+
+    abstract MovementCost verticalGrounded();
+
+    abstract MovementCost airborne();
   }
 
   private void emitVisual(TurtleVisualAction action, String detail) {

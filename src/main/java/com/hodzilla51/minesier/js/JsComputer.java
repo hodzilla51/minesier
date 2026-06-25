@@ -232,6 +232,8 @@ public final class JsComputer {
               new String[] {
                 "forward",
                 "back",
+                "up",
+                "down",
                 "turnLeft",
                 "turnRight",
                 "dig",
@@ -239,6 +241,7 @@ public final class JsComputer {
                 "wait",
                 "detect",
                 "inspect",
+                "scan",
                 "getFuelLevel",
                 "refuel",
                 "select",
@@ -827,6 +830,8 @@ public final class JsComputer {
       return switch (op) {
         case "forward" -> t.forward();
         case "back" -> t.back();
+        case "up" -> t.up();
+        case "down" -> t.down();
         case "turnLeft" -> t.turnLeft();
         case "turnRight" -> t.turnRight();
         case "dig" -> t.dig();
@@ -837,6 +842,7 @@ public final class JsComputer {
         }
         case "detect" -> t.detect();
         case "inspect" -> t.inspect();
+        case "scan" -> scanResults(cx, scope, t.scan());
         case "getFuelLevel" -> t.getFuelLevel();
         case "refuel" -> {
           t.refuel(args.length > 0 ? (int) Context.toNumber(args[0]) : 0);
@@ -851,6 +857,20 @@ public final class JsComputer {
             t.getItemCount(args.length > 0 ? (int) Context.toNumber(args[0]) : 0);
         default -> Boolean.FALSE;
       };
+    }
+
+    private Object scanResults(Context cx, Scriptable scope, List<TurtleApi.ScanResult> results) {
+      Object[] entries = new Object[results.size()];
+      for (int i = 0; i < results.size(); i++) {
+        TurtleApi.ScanResult result = results.get(i);
+        ScriptableObject object = (ScriptableObject) cx.newObject(scope);
+        ScriptableObject.putProperty(object, "x", result.x());
+        ScriptableObject.putProperty(object, "y", result.y());
+        ScriptableObject.putProperty(object, "z", result.z());
+        ScriptableObject.putProperty(object, "block", result.block());
+        entries[i] = object;
+      }
+      return cx.newArray(scope, entries);
     }
   }
 }

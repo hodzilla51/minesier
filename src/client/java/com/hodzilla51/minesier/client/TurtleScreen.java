@@ -1,6 +1,7 @@
 package com.hodzilla51.minesier.client;
 
 import com.hodzilla51.minesier.menu.TurtleMenu;
+import com.hodzilla51.minesier.net.OpenTurtleEquipmentC2S;
 import com.hodzilla51.minesier.net.OpenTurtleTerminalC2S;
 import com.hodzilla51.minesier.net.TurtleClickC2S;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -57,6 +58,10 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
     addRenderableWidget(
         Button.builder(Component.literal("Terminal"), b -> returnToTerminal())
             .bounds(MARGIN, 2, TAB_W, TAB_H)
+            .build());
+    addRenderableWidget(
+        Button.builder(Component.literal("Equipment"), b -> openEquipment())
+            .bounds(MARGIN + TAB_W + 4, 2, 90, TAB_H)
             .build());
   }
 
@@ -154,6 +159,11 @@ public class TurtleScreen extends AbstractContainerScreen<TurtleMenu> {
   /** Closes the storage menu, then reopens the terminal for this same turtle. */
   private void returnToTerminal() {
     ClientPlayNetworking.send(new OpenTurtleTerminalC2S(this.menu.turtlePos()));
+  }
+
+  private void openEquipment() {
+    ClientPlayNetworking.send(
+        new OpenTurtleEquipmentC2S(this.menu.turtlePos(), this.width, this.height));
   }
 
   @Override
