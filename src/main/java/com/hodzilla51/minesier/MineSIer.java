@@ -3,6 +3,7 @@ package com.hodzilla51.minesier;
 import com.hodzilla51.minesier.js.SafeContextFactory;
 import com.hodzilla51.minesier.net.MineSIerNet;
 import com.hodzilla51.minesier.net.NetworkManager;
+import com.hodzilla51.minesier.net.WirelessNetwork;
 import com.hodzilla51.minesier.turtle.TurtleManager;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ModInitializer;
@@ -41,6 +42,7 @@ public class MineSIer implements ModInitializer {
     // Tick-paced turtle execution (drives running programs once per server tick).
     TurtleManager.init();
     NetworkManager.init();
+    WirelessNetwork.init();
 
     // /js <script> — evaluate a JavaScript snippet via the embedded Rhino engine.
     // Names follow MC 26.2 official (Mojang) mappings: Commands / CommandSourceStack / Component.
