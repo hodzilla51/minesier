@@ -2,6 +2,7 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 	id 'com.diffplug.spotless' version '8.1.0'
+	id 'com.gradleup.shadow' version '9.4.2'
 }
 
 version = project.mod_version
@@ -30,6 +31,11 @@ loom {
 
 }
 
+configurations {
+	shade
+	implementation.extendsFrom(shade)
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -40,12 +46,16 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// Mozilla Rhino — embeddable JavaScript engine, used by the /js command.
-	// `implementation` puts it on the compile/runtime classpath; `include` bundles
-	// (Jar-in-Jar) it into the built mod jar so it ships to end users without an
-	// external dependency. We intentionally do NOT pull in rhino's `tools` artifact
-	// (shell/debugger), keeping the embedded engine to the sandboxed core API.
-	implementation "org.mozilla:rhino:${project.rhino_version}"
-	include "org.mozilla:rhino:${project.rhino_version}"
+	// Shadow relocates it into our namespace before Loom remaps the final mod jar,
+	// avoiding classpath clashes with other mods that also bundle Rhino.
+	shade "org.mozilla:rhino:${project.rhino_version}"
+}
+
+shadowJar {
+	archiveClassifier = ""
+	configurations = [project.configurations.shade]
+	relocate "org.mozilla.classfile", "com.hodzilla51.minesier.shaded.rhino.classfile"
+	relocate "org.mozilla.javascript", "com.hodzilla51.minesier.shaded.rhino"
 }
 
 processResources {
@@ -84,6 +94,7 @@ spotless {
 jar {
 	def projectName = project.name
 	inputs.property "projectName", projectName
+	archiveClassifier = "plain"
 
 	from("LICENSE") {
 		rename { "${it}_$projectName"}
