@@ -16,6 +16,13 @@ import net.minecraft.world.item.ItemStack;
 
 /** Equipment menu for Turtle foot, arm, and top extension slots. */
 public class TurtleEquipmentMenu extends AbstractContainerMenu {
+  private static final int MARGIN = 12;
+  private static final int SLOT = 18;
+  private static final int EQUIPMENT_GAP = 8;
+  private static final int EQUIPMENT_TOP_Y = 54;
+  private static final int EQUIPMENT_SLOT_INSET_X = 8;
+  private static final int EQUIPMENT_SLOT_INSET_Y = 14;
+
   public static final int PLAYER_START = 0;
   public static final int PLAYER_END = 36;
   public static final int EQUIPMENT_START = PLAYER_END;
@@ -67,24 +74,54 @@ public class TurtleEquipmentMenu extends AbstractContainerMenu {
     this.access = access;
     this.pos = pos;
 
-    int inventoryX = (Math.max(256, screenWidth) - 9 * 18) / 2;
+    int inventoryX = (Math.max(256, screenWidth) - 9 * SLOT) / 2;
     int inventoryY = Math.max(216, screenHeight) - 12 - 72;
     for (int row = 0; row < 3; row++) {
       for (int col = 0; col < 9; col++) {
         addSlot(
-            new Slot(playerInv, 9 + row * 9 + col, inventoryX + col * 18, inventoryY + row * 18));
+            new Slot(
+                playerInv, 9 + row * 9 + col, inventoryX + col * SLOT, inventoryY + row * SLOT));
       }
     }
     for (int col = 0; col < 9; col++) {
-      addSlot(new Slot(playerInv, col, inventoryX + col * 18, inventoryY + 58));
+      addSlot(new Slot(playerInv, col, inventoryX + col * SLOT, inventoryY + 58));
     }
 
-    int center = Math.max(256, screenWidth) / 2;
-    int equipmentY = 76;
     addSlot(
-        new EquipmentSlot(equipment, TurtleBlockEntity.EQUIPMENT_FOOT, center - 63, equipmentY));
-    addSlot(new EquipmentSlot(equipment, TurtleBlockEntity.EQUIPMENT_ARM, center - 9, equipmentY));
-    addSlot(new EquipmentSlot(equipment, TurtleBlockEntity.EQUIPMENT_TOP, center + 45, equipmentY));
+        new EquipmentSlot(
+            equipment,
+            TurtleBlockEntity.EQUIPMENT_FOOT,
+            equipmentSlotX(screenWidth, TurtleBlockEntity.EQUIPMENT_FOOT),
+            equipmentSlotY()));
+    addSlot(
+        new EquipmentSlot(
+            equipment,
+            TurtleBlockEntity.EQUIPMENT_ARM,
+            equipmentSlotX(screenWidth, TurtleBlockEntity.EQUIPMENT_ARM),
+            equipmentSlotY()));
+    addSlot(
+        new EquipmentSlot(
+            equipment,
+            TurtleBlockEntity.EQUIPMENT_TOP,
+            equipmentSlotX(screenWidth, TurtleBlockEntity.EQUIPMENT_TOP),
+            equipmentSlotY()));
+  }
+
+  private static int equipmentCardWidth(int screenWidth) {
+    int contentWidth = Math.max(256, screenWidth) - 2 * MARGIN;
+    return (contentWidth - 2 * EQUIPMENT_GAP) / TurtleBlockEntity.EQUIPMENT_SIZE;
+  }
+
+  private static int equipmentCardX(int screenWidth, int equipmentSlot) {
+    return MARGIN + equipmentSlot * (equipmentCardWidth(screenWidth) + EQUIPMENT_GAP);
+  }
+
+  private static int equipmentSlotX(int screenWidth, int equipmentSlot) {
+    return equipmentCardX(screenWidth, equipmentSlot) + EQUIPMENT_SLOT_INSET_X;
+  }
+
+  private static int equipmentSlotY() {
+    return EQUIPMENT_TOP_Y + EQUIPMENT_SLOT_INSET_Y;
   }
 
   public BlockPos turtlePos() {

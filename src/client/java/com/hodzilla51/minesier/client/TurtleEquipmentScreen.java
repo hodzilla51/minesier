@@ -22,6 +22,10 @@ public class TurtleEquipmentScreen extends AbstractContainerScreen<TurtleEquipme
   private static final int TAB_W = 80;
   private static final int PLAYER_INV_H = 72;
   private static final int SLOT = 18;
+  private static final int EQUIPMENT_GAP = 8;
+  private static final int EQUIPMENT_TOP_Y = 54;
+  private static final int EQUIPMENT_CARD_H = 48;
+  private static final int EQUIPMENT_SLOT_INSET_X = 8;
 
   private static final int PANEL_COLOR = 0xFF0C120C;
   private static final int BORDER_COLOR = 0xFF3A6B3A;
@@ -60,6 +64,15 @@ public class TurtleEquipmentScreen extends AbstractContainerScreen<TurtleEquipme
 
   private int titleHeight() {
     return this.font.lineHeight + 6;
+  }
+
+  private int equipmentCardWidth() {
+    int contentWidth = Math.max(256, this.width) - 2 * MARGIN;
+    return (contentWidth - 2 * EQUIPMENT_GAP) / TurtleBlockEntity.EQUIPMENT_SIZE;
+  }
+
+  private int equipmentCardX(int equipmentSlot) {
+    return MARGIN + equipmentSlot * (equipmentCardWidth() + EQUIPMENT_GAP);
   }
 
   @Override
@@ -105,12 +118,12 @@ public class TurtleEquipmentScreen extends AbstractContainerScreen<TurtleEquipme
       int mouseX,
       int mouseY) {
     Slot slot = this.menu.getSlot(TurtleEquipmentMenu.EQUIPMENT_START + equipmentSlot);
-    int cardW = 160;
-    int cardH = 48;
-    int cardX = slot.x - 12;
-    int cardY = slot.y - 10;
-    graphics.fill(cardX, cardY, cardX + cardW, cardY + cardH, BORDER_COLOR);
-    graphics.fill(cardX + 1, cardY + 1, cardX + cardW - 1, cardY + cardH - 1, CELL_COLOR);
+    int cardW = equipmentCardWidth();
+    int cardX = equipmentCardX(equipmentSlot);
+    int cardY = EQUIPMENT_TOP_Y;
+    graphics.fill(cardX, cardY, cardX + cardW, cardY + EQUIPMENT_CARD_H, BORDER_COLOR);
+    graphics.fill(
+        cardX + 1, cardY + 1, cardX + cardW - 1, cardY + EQUIPMENT_CARD_H - 1, CELL_COLOR);
     graphics.fill(slot.x - 1, slot.y - 1, slot.x + 17, slot.y + 17, BORDER_COLOR);
     graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, PANEL_COLOR);
     graphics.text(this.font, title, slot.x + 24, slot.y - 1, TITLE_COLOR);
@@ -118,7 +131,9 @@ public class TurtleEquipmentScreen extends AbstractContainerScreen<TurtleEquipme
     ItemStack stack = this.menu.equipmentItem(equipmentSlot);
     String detail = stack.isEmpty() ? hint : itemName(stack);
     int color = stack.isEmpty() ? EMPTY_COLOR : TEXT_COLOR;
-    graphics.text(this.font, trim(detail, cardW - 34), slot.x + 24, slot.y + 11, color);
+    int detailX = cardX + EQUIPMENT_SLOT_INSET_X + SLOT + 6;
+    int detailMaxW = cardX + cardW - detailX - 4;
+    graphics.text(this.font, trim(detail, detailMaxW), detailX, slot.y + 11, color);
   }
 
   private static String itemName(ItemStack stack) {

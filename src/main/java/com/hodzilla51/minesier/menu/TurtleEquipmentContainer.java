@@ -60,7 +60,7 @@ public final class TurtleEquipmentContainer implements Container {
 
   @Override
   public void setChanged() {
-    turtle.setChanged();
+    turtle.equipmentChanged();
   }
 
   @Override

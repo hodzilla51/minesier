@@ -15,6 +15,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.client.renderer.item.ItemModelResolver;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -26,6 +27,8 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * Draws the turtle (the block itself is INVISIBLE) so it can slide smoothly between cells during a
@@ -37,6 +40,15 @@ public class TurtleBlockEntityRenderer
 
   private static final float SCREEN_SCALE = 0.035f;
   private static final int FULL_BRIGHT = 0xF000F0;
+  private static final int FOOT_COLOR = 0xFF66D9EF;
+  private static final int ARM_COLOR = 0xFFFFD166;
+  private static final int TOP_COLOR = 0xFFB48CFF;
+  private static final VoxelShape FOOT_SHAPE =
+      Shapes.or(
+          Shapes.box(0.08, -0.08, 0.08, 0.24, 0.10, 0.92),
+          Shapes.box(0.76, -0.08, 0.08, 0.92, 0.10, 0.92));
+  private static final VoxelShape ARM_SHAPE = Shapes.box(0.92, 0.28, 0.24, 1.18, 0.48, 0.76);
+  private static final VoxelShape TOP_SHAPE = Shapes.box(0.30, 0.96, 0.30, 0.70, 1.18, 0.70);
 
   private final Font font;
   private final ItemModelResolver itemModelResolver;
@@ -76,6 +88,13 @@ public class TurtleBlockEntityRenderer
     state.screenColor = 0xFF9CFF9C;
     state.pickupItem.clear();
     state.showPickupItem = false;
+    state.footItem.clear();
+    state.armItem.clear();
+    state.topItem.clear();
+    state.hasFootEquipment = !be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_FOOT).isEmpty();
+    state.hasArmEquipment = !be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_ARM).isEmpty();
+    state.hasTopEquipment = !be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_TOP).isEmpty();
+    configureEquipmentItems(state, be, level);
 
     TurtleAnimations.Slide slide = TurtleAnimations.get(pos);
     if (slide != null) {
@@ -130,6 +149,8 @@ public class TurtleBlockEntityRenderer
     }
     // The final argument is an optional outline color, not a light coordinate.
     collector.submitMovingBlock(poseStack, state.moving, 0);
+    submitEquipmentShapes(state, poseStack, collector);
+    submitEquipment(state, poseStack, collector);
     submitScreen(state, poseStack, collector);
     poseStack.popPose();
   }
@@ -222,6 +243,84 @@ public class TurtleBlockEntityRenderer
       state.pickupItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
       poseStack.popPose();
     }
+    poseStack.popPose();
+  }
+
+  private void configureEquipmentItems(TurtleRenderState state, TurtleBlockEntity be, Level level) {
+    configureEquipmentItem(
+        state.footItem, be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_FOOT), level);
+    configureEquipmentItem(
+        state.armItem, be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_ARM), level);
+    configureEquipmentItem(
+        state.topItem, be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_TOP), level);
+  }
+
+  private void configureEquipmentItem(
+      net.minecraft.client.renderer.item.ItemStackRenderState renderState,
+      ItemStack stack,
+      Level level) {
+    if (stack.isEmpty()) {
+      return;
+    }
+    itemModelResolver.updateForTopItem(
+        renderState, stack, ItemDisplayContext.FIXED, level, null, 0);
+  }
+
+  private void submitEquipment(
+      TurtleRenderState state, PoseStack poseStack, SubmitNodeCollector collector) {
+    poseStack.pushPose();
+    poseStack.translate(0.5, 0.5, 0.5);
+    poseStack.mulPose(Axis.YP.rotationDegrees(-state.facing.toYRot()));
+
+    if (!state.footItem.isEmpty()) {
+      poseStack.pushPose();
+      poseStack.translate(0.0, -0.45, -0.18);
+      poseStack.scale(0.32f, 0.32f, 0.32f);
+      state.footItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      poseStack.popPose();
+    }
+
+    if (!state.armItem.isEmpty()) {
+      poseStack.pushPose();
+      poseStack.translate(0.42, -0.03, 0.28);
+      poseStack.mulPose(Axis.ZP.rotationDegrees(-35f));
+      poseStack.scale(0.34f, 0.34f, 0.34f);
+      state.armItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      poseStack.popPose();
+    }
+
+    if (!state.topItem.isEmpty()) {
+      poseStack.pushPose();
+      poseStack.translate(0.0, 0.56, 0.0);
+      poseStack.mulPose(Axis.XP.rotationDegrees(90f));
+      poseStack.scale(0.30f, 0.30f, 0.30f);
+      state.topItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      poseStack.popPose();
+    }
+
+    poseStack.popPose();
+  }
+
+  private void submitEquipmentShapes(
+      TurtleRenderState state, PoseStack poseStack, SubmitNodeCollector collector) {
+    poseStack.pushPose();
+    poseStack.translate(0.5, 0.5, 0.5);
+    poseStack.mulPose(Axis.YP.rotationDegrees(-state.facing.toYRot()));
+    poseStack.translate(-0.5, -0.5, -0.5);
+
+    if (state.hasFootEquipment) {
+      collector.submitShapeOutline(
+          poseStack, FOOT_SHAPE, RenderTypes.lines(), FOOT_COLOR, 3.0f, false);
+    }
+    if (state.hasArmEquipment) {
+      collector.submitShapeOutline(
+          poseStack, ARM_SHAPE, RenderTypes.lines(), ARM_COLOR, 3.0f, false);
+    }
+    if (state.hasTopEquipment) {
+      collector.submitShapeOutline(
+          poseStack, TOP_SHAPE, RenderTypes.lines(), TOP_COLOR, 3.0f, false);
+    }
+
     poseStack.popPose();
   }
 
