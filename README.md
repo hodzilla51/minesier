@@ -174,6 +174,9 @@ runs automatically the moment that disk is inserted into a computer.
 See the [networking specification](docs/networking.md) for the canonical API,
 packet formats, limits, and implementation status.
 
+The long-term direction for MineSIer's system-integrator experience is defined
+in the [system integration design principles](docs/system-integration.md).
+
 Computers and Turtles have one NIC on every face. Connect Cable to the desired
 face to exchange frames with devices in the same connected cable segment.
 Addresses remain stable while the world is saved, including when a Turtle moves.
