@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.js;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 
@@ -10,14 +11,9 @@ import org.mozilla.javascript.ContextFactory;
  * complementing fuel limits.
  */
 public final class SafeContextFactory extends ContextFactory {
-  /** Observe (and check the budget) every this many interpreted instructions. */
-  private static final int OBSERVE_EVERY = 100_000;
-
-  /** Hard per-run instruction cap; exceeding it kills the script. */
-  private static final long MAX_INSTRUCTIONS = 200_000_000L;
-
   private static final ThreadLocal<long[]> COUNT = ThreadLocal.withInitial(() -> new long[1]);
-  private static final ThreadLocal<Long> LIMIT = ThreadLocal.withInitial(() -> MAX_INSTRUCTIONS);
+  private static final ThreadLocal<Long> LIMIT =
+      ThreadLocal.withInitial(() -> MineSIerConfig.maxScriptInstructions);
 
   private SafeContextFactory() {}
 
@@ -31,7 +27,7 @@ public final class SafeContextFactory extends ContextFactory {
   /** Resets the calling thread's instruction budget; call at the start of each run. */
   public static void resetCounter() {
     COUNT.get()[0] = 0L;
-    LIMIT.set(MAX_INSTRUCTIONS);
+    LIMIT.set(MineSIerConfig.maxScriptInstructions);
   }
 
   /** Resets the calling thread with a tighter cap for an event callback. */
@@ -44,7 +40,7 @@ public final class SafeContextFactory extends ContextFactory {
   protected void onContextCreated(Context cx) {
     super.onContextCreated(cx);
     cx.setInterpretedMode(true);
-    cx.setInstructionObserverThreshold(OBSERVE_EVERY);
+    cx.setInstructionObserverThreshold(MineSIerConfig.instructionObserveEvery);
   }
 
   @Override

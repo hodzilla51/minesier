@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.net;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -13,8 +14,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
  * deadlock or re-enter the queue ops.
  */
 public final class NetworkManager {
-  private static final int MAX_QUEUED_EVENTS = 1_024;
-  private static final int MAX_EVENTS_PER_TICK = 4;
   private static final Object LOCK = new Object();
   private static final Deque<Runnable> EVENTS = new ArrayDeque<>();
 
@@ -32,7 +31,7 @@ public final class NetworkManager {
   /** Schedules a bounded data-plane action for the next server tick. */
   public static boolean schedule(Runnable action) {
     synchronized (LOCK) {
-      if (EVENTS.size() >= MAX_QUEUED_EVENTS) {
+      if (EVENTS.size() >= MineSIerConfig.maxNetworkQueuedEvents) {
         return false;
       }
       EVENTS.addLast(action);
@@ -41,7 +40,7 @@ public final class NetworkManager {
   }
 
   private static void dispatch() {
-    for (int processed = 0; processed < MAX_EVENTS_PER_TICK; processed++) {
+    for (int processed = 0; processed < MineSIerConfig.maxNetworkEventsPerTick; processed++) {
       Runnable event;
       synchronized (LOCK) {
         event = EVENTS.pollFirst();

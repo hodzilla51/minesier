@@ -29,6 +29,9 @@ public class MineSIer implements ModInitializer {
 
     LOGGER.info("Hello Fabric world!");
 
+    // Operator-configurable safety/resource limits.
+    MineSIerConfig.load();
+
     // Sandbox + anti-runaway for every script context (install before any script runs).
     SafeContextFactory.install();
 

@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.block;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.MonitorApi;
@@ -40,9 +41,6 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   private static final String KEY_ADDRESS = "NetworkAddress";
   private static final String KEY_REDSTONE_OUT = "RedstoneOut";
   private static final String KEY_RESIDENT = "ResidentSource";
-  private static final int MAX_LINES = 200;
-  private static final int MAX_INBOX_FRAMES = 64;
-  private static final int MAX_FRAME_BYTES = 4 * 1024;
   private static final String WELCOME = "MineSIer JS terminal — type an expression.";
 
   /** This computer's own sandboxed JS VM (1 block = 1 VM). */
@@ -110,7 +108,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
           frame);
       return;
     }
-    if (nic.inbox.size() >= MAX_INBOX_FRAMES) {
+    if (nic.inbox.size() >= MineSIerConfig.maxInboxFrames) {
       return;
     }
     nic.inbox.addLast(frame);
@@ -257,7 +255,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
   }
 
   private void trim() {
-    while (transcript.size() > MAX_LINES) {
+    while (transcript.size() > MineSIerConfig.maxTranscriptLines) {
       transcript.remove(0);
     }
   }
@@ -345,7 +343,8 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     private boolean send(Direction face, String destination, String data) {
       if (!(level instanceof ServerLevel serverLevel)
           || destination.isBlank()
-          || data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
+          || data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+              > MineSIerConfig.maxFrameBytes) {
         return false;
       }
       return emit(serverLevel, face, new NetworkFrame(addressFor(face), destination, data));
@@ -364,7 +363,7 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
           || face == null
           || frame.destination().isBlank()
           || frame.data().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
-              > MAX_FRAME_BYTES) {
+              > MineSIerConfig.maxFrameBytes) {
         return false;
       }
       // Advance one hop; drop at the limit so a player-built switch can't loop forever either.

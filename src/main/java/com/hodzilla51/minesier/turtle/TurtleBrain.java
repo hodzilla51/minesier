@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.turtle;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.js.TurtleApi;
 import com.hodzilla51.minesier.net.TurtleVisualAction;
@@ -25,8 +26,6 @@ public final class TurtleBrain {
 
   /** Ticks a turn takes — shorter than a move, but visible (not instant). */
   public static final int TURN_TICKS = 9;
-
-  private static final int MAX_WAIT_TICKS = 20 * 60;
 
   private static final Map<String, Integer> PACE =
       Map.of(
@@ -137,7 +136,7 @@ public final class TurtleBrain {
         executing = true;
         ticksLeft = PACE.getOrDefault(op, 0);
         if ("wait".equals(op)) {
-          ticksLeft = Math.clamp((int) args[0], 0, MAX_WAIT_TICKS);
+          ticksLeft = Math.clamp((int) args[0], 0, MineSIerConfig.maxTurtleWaitTicks);
         } else {
           ticksLeft = world.actionTicks(op, args, ticksLeft);
         }

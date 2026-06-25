@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.turtle;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.block.TurtleAccess;
 import com.hodzilla51.minesier.block.TurtleBlock;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
@@ -24,9 +25,6 @@ import net.minecraft.world.level.Level;
  * the server thread.
  */
 public final class TurtleManager {
-  private static final int MAX_LINES = 200;
-  private static final int MAX_PROGRAM_TICKS = 12_000; // ~10 min safety cap
-
   private static final List<Running> ACTIVE = new ArrayList<>();
 
   private TurtleManager() {}
@@ -124,7 +122,7 @@ public final class TurtleManager {
       Running r = it.next();
       r.brain.tick();
       r.ticks++;
-      if (r.ticks > MAX_PROGRAM_TICKS && !r.brain.isFinished()) {
+      if (r.ticks > MineSIerConfig.maxTurtleProgramTicks && !r.brain.isFinished()) {
         r.brain.abort();
       }
       if (r.brain.isFinished() || r.brain.isAborted()) {
@@ -140,7 +138,7 @@ public final class TurtleManager {
 
     List<String> lines = new ArrayList<>(r.baseTranscript);
     lines.addAll(r.brain.drainOutput());
-    while (lines.size() > MAX_LINES) {
+    while (lines.size() > MineSIerConfig.maxTranscriptLines) {
       lines.remove(0);
     }
     String transcript = String.join("\n", lines);

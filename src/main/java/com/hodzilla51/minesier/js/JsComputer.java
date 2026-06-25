@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.js;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.net.IpPacket;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import java.util.ArrayList;
@@ -163,7 +164,7 @@ public final class JsComputer {
   private List<String> invokeBounded(
       Function handler, BiFunction<Context, Scriptable, Object[]> argBuilder) {
     List<String> out = new ArrayList<>();
-    SafeContextFactory.resetCounter(100_000L);
+    SafeContextFactory.resetCounter(MineSIerConfig.maxCallbackInstructions);
     Context cx = Context.enter();
     try {
       cx.setInterpretedMode(true);

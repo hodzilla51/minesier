@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.turtle;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.js.NetworkApi;
@@ -31,8 +32,6 @@ import net.minecraft.server.level.ServerLevel;
  * therefore synchronously hop to the server thread; receive callbacks already run there.
  */
 public final class TurtleNetworkState implements NetworkApi {
-  private static final int MAX_INBOX_FRAMES = 64;
-  private static final int MAX_FRAME_BYTES = 4 * 1024;
   private static final long SERVER_HOP_TIMEOUT_MS = 2_000L;
   private static final long NETWORK_VISUAL_INTERVAL_TICKS = 4L;
 
@@ -86,7 +85,7 @@ public final class TurtleNetworkState implements NetworkApi {
           frame);
       return;
     }
-    if (nic.inbox.size() < MAX_INBOX_FRAMES) {
+    if (nic.inbox.size() < MineSIerConfig.maxInboxFrames) {
       nic.inbox.addLast(frame);
     }
   }
@@ -129,7 +128,7 @@ public final class TurtleNetworkState implements NetworkApi {
     Direction face = parseFace(interfaceName);
     if (face == null
         || frame.destination().isBlank()
-        || frame.data().getBytes(StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
+        || frame.data().getBytes(StandardCharsets.UTF_8).length > MineSIerConfig.maxFrameBytes) {
       return false;
     }
     NetworkFrame forwarded = frame.nextHop();
@@ -199,7 +198,8 @@ public final class TurtleNetworkState implements NetworkApi {
   }
 
   private boolean send(Direction face, String destination, String data) {
-    if (destination.isBlank() || data.getBytes(StandardCharsets.UTF_8).length > MAX_FRAME_BYTES) {
+    if (destination.isBlank()
+        || data.getBytes(StandardCharsets.UTF_8).length > MineSIerConfig.maxFrameBytes) {
       return false;
     }
     return onServer(

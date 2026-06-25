@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.block;
 
+import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.net.NetworkFrame;
@@ -114,7 +115,7 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
   /** Appends output produced by a network receive callback after the foreground program ended. */
   public void appendNetworkOutput(List<String> lines) {
     transcript.addAll(lines);
-    while (transcript.size() > 200) {
+    while (transcript.size() > MineSIerConfig.maxTranscriptLines) {
       transcript.remove(0);
     }
     setChanged();
