@@ -6,9 +6,15 @@
 ![Minecraft 26.2](https://img.shields.io/badge/Minecraft-26.2-green.svg)
 ![Loader: Fabric](https://img.shields.io/badge/Loader-Fabric-blueviolet.svg)
 
-**Write JavaScript inside Minecraft.** Programmable computers and turtles you can
-code from within the world — in the spirit of [CC:Tweaked](https://tweaked.cc/),
-but in JavaScript instead of Lua.
+**Build programmable systems inside Minecraft.** MineSIer is a system-integration
+sandbox: write JavaScript in-world, move code and data on disks, wire computers
+into networks, drive redstone and monitors, and customize turtles for factory,
+mining, exploration, and automation jobs.
+
+It is inspired by [CC:Tweaked](https://tweaked.cc/), but the goal is broader than
+"ComputerCraft with JavaScript": MineSIer is about building operational systems
+from programmable machines, portable storage, signals, networks, and robot
+equipment.
 
 > ⚠️ **Experimental / early development.** Targets Minecraft 26.2 (Fabric). Things
 > may change. Feedback and contributions welcome.
@@ -21,12 +27,20 @@ but in JavaScript instead of Lua.
 - **Sandboxed VM per block** — each computer runs its own isolated JavaScript engine
   (no host file/network/reflection access; runaway loops are cut off).
 - **Programmable turtle** — a robot you move and command with code:
-  `forward` / `back` / `turnLeft` / `turnRight`, `dig` / `place`, `detect` /
-  `inspect`, fuel. It moves **one block at a time with smooth animation**, and
-  reacts to the world as it runs.
+  movement, digging, placing, inspection, fuel, inventory, networks, and proximity
+  scanning. It moves **one block at a time with smooth animation**, and reacts to
+  the world as it runs.
+- **Turtle equipment** — dedicated foot, arm, and top slots. Foot parts change
+  movement profile and fuel cost, arm tools affect digging like player-held
+  tools, and top modules add utility such as proximity sensing.
 - **Inventory** — turtles collect what they dig and place from a selected slot.
-- **Disks** — save programs onto a disk item. The data lives on the disk, so you can
-  pop it out and carry your programs to another computer.
+- **Portable disks** — save programs, libraries, JSON, configs, and logs as text
+  files on a disk item. The data lives on the disk, so you can pop it out and
+  carry your working environment to another machine.
+- **Wired networking** — every computer and turtle has a NIC on each face. Build
+  bridges, switches, routers, VPNs, and application protocols in ordinary JS.
+- **Redstone and monitors** — read and drive vanilla signals, and render text to
+  in-world displays from code.
 - **Persistent** — computer/turtle state is saved with the world.
 
 ## Quick start
@@ -37,6 +51,10 @@ Get the blocks (creative or commands):
 /give @s minesier:computer
 /give @s minesier:turtle
 /give @s minesier:disk
+/give @s minesier:wheel_foot_part
+/give @s minesier:crawler_foot_part
+/give @s minesier:hover_foot_part
+/give @s minesier:proximity_sensor_module
 ```
 
 **Computer** — place it, right-click, type and Run:
@@ -94,11 +112,22 @@ library take effect). Circular requires resolve to the partial exports.
 `forward()` `back()` `turnLeft()` `turnRight()` `dig()` `place()` (from the
 selected slot, consuming one block item) `place(id)` (requires the selected
 block to match, e.g. `"minecraft:stone"`) `detect()` `inspect()`
-`getFuelLevel()` `refuel(n)` `wait(ticks)` `select(n)` `getSelectedSlot()`
-`getItemCount(n)`
+`up()` `down()` `scan()` `getFuelLevel()` `refuel(n)` `wait(ticks)` `select(n)`
+`getSelectedSlot()` `getItemCount(n)`
 
 Turtles also expose the same `net` and `net.nic(side)` API as Computers. Their
 MAC-like addresses and queued frames survive block-by-block movement.
+
+Turtles have a separate equipment screen for:
+
+- **Foot** — empty, wheel, crawler, or hover. The default empty foot is slow.
+  Wheels are fast on pickaxe-mineable hard blocks such as stone and bricks;
+  crawlers are steadier off-road; hover ignores terrain categories and handles
+  unsupported movement better at higher fuel cost.
+- **Arm** — a vanilla or modded tool. `dig()` uses that tool's normal block
+  breaking behavior, including harvest level, speed, durability, and enchantments.
+- **Top** — utility module. The Proximity Sensor enables `turtle.scan()`, returning
+  nearby non-air blocks in a 7x3x7 area centered on the turtle.
 
 Global: `print(...)`. There is also a `/js <expression>` command for one-off evaluation.
 
@@ -175,7 +204,8 @@ itself isn't serialized, so top-level setup runs again — keep it idempotent).
 Timers only fire while the chunk is loaded.
 
 You can also boot a daemon from a disk: save a program named `/startup.js`, and
-it runs automatically the moment that disk is inserted into a computer.
+it runs automatically the moment that disk is inserted into a computer. A legacy
+file named `startup` is still accepted.
 
 ### Disk filesystem API
 
@@ -328,11 +358,14 @@ Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
 
 ## Roadmap
 
-- ✅ JS engine, computer + terminal/editor, programmable turtle, disks
-- ⏳ Wired computer networking (player-built switches, routers, and VPNs)
+- ✅ JS engine, computer + terminal/editor, programmable turtle, portable disks
+- ✅ Wired computer networking primitives, multi-NIC devices, player-built bridges/routers, managed switch
 - ✅ Redstone I/O (read/drive signals on any face from a program)
 - ✅ Monitors (in-world text display driven from code)
 - ✅ Resident execution (timers that survive terminal close and world reload, plus startup disks)
+- ✅ Turtle equipment foundation (foot movement profiles, arm tools, top modules)
+- ⏳ Disk/file UI and filesystem polish
+- ⏳ Turtle equipment visuals
 - 🌟 In-game code editor with type completion
 - 🔭 NeoForge support
 
