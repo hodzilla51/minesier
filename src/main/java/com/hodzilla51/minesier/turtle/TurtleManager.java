@@ -121,6 +121,7 @@ public final class TurtleManager {
     for (Iterator<Running> it = ACTIVE.iterator(); it.hasNext(); ) {
       Running r = it.next();
       r.brain.tick();
+      flushOutput(r, true);
       r.ticks++;
       if (r.ticks > MineSIerConfig.maxTurtleProgramTicks && !r.brain.isFinished()) {
         r.brain.abort();
@@ -136,12 +137,8 @@ public final class TurtleManager {
     BlockPos endPos = r.world.pos();
     int fuel = r.world.fuel();
 
-    List<String> lines = new ArrayList<>(r.baseTranscript);
-    lines.addAll(r.brain.drainOutput());
-    while (lines.size() > MineSIerConfig.maxTranscriptLines) {
-      lines.remove(0);
-    }
-    String transcript = String.join("\n", lines);
+    flushOutput(r, false);
+    String transcript = String.join("\n", r.baseTranscript);
 
     // Facing already lives in the block's state (updated as the turtle turned/moved).
     if (r.level.getBlockEntity(endPos) instanceof TurtleBlockEntity end) {
@@ -155,6 +152,21 @@ public final class TurtleManager {
           transcript);
     }
     ServerPlayNetworking.send(r.player, new TerminalScreenS2C(endPos, transcript, false));
+  }
+
+  private static void flushOutput(Running r, boolean notifyClient) {
+    List<String> out = r.brain.drainOutput();
+    if (!out.isEmpty()) {
+      r.baseTranscript.addAll(out);
+      while (r.baseTranscript.size() > MineSIerConfig.maxTranscriptLines) {
+        r.baseTranscript.remove(0);
+      }
+    }
+    if (!out.isEmpty() && notifyClient) {
+      ServerPlayNetworking.send(
+          r.player,
+          new TerminalScreenS2C(r.world.pos(), String.join("\n", r.baseTranscript), false));
+    }
   }
 
   private static List<String> echo(String command) {

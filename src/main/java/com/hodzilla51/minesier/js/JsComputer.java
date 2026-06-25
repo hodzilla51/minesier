@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.ClassShutter;
 import org.mozilla.javascript.Context;
@@ -40,6 +41,9 @@ public final class JsComputer {
 
   /** Output sink for the currently-running program; null when idle. */
   private List<String> sink;
+
+  /** Optional live subscriber for newly printed transcript lines. */
+  private Consumer<String> outputListener;
 
   /** Turtle actions for the {@code turtle} global; null on a plain (non-turtle) computer. */
   private TurtleApi turtle;
@@ -99,6 +103,11 @@ public final class JsComputer {
   /** Attaches the {@code require(name)} resolver (maps a name to another program's source). */
   public void setModuleLoader(java.util.function.Function<String, String> moduleLoader) {
     this.moduleLoader = moduleLoader;
+  }
+
+  /** Attaches a live output listener for newly printed lines, or null to disable streaming. */
+  public synchronized void setOutputListener(Consumer<String> outputListener) {
+    this.outputListener = outputListener;
   }
 
   /**
@@ -868,6 +877,10 @@ public final class JsComputer {
         // A printed value may contain newlines; keep each transcript line single-line.
         for (String line : sb.toString().split("\n", -1)) {
           sink.add(line);
+          Consumer<String> listener = outputListener;
+          if (listener != null) {
+            listener.accept(line);
+          }
         }
       }
       return Undefined.instance;

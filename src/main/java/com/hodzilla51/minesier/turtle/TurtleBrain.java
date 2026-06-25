@@ -64,6 +64,7 @@ public final class TurtleBrain {
   private Object result;
   private volatile boolean aborted;
   private volatile boolean finished;
+  private int streamedLines;
   private Thread worker;
 
   public TurtleBrain(JsComputer vm, TurtleApi world, String program) {
@@ -82,27 +83,43 @@ public final class TurtleBrain {
 
   public List<String> drainOutput() {
     synchronized (lock) {
-      return new ArrayList<>(output);
+      List<String> lines = new ArrayList<>(output);
+      output.clear();
+      return lines;
     }
   }
 
   /** Starts the worker thread running the program against the blocking proxy. */
   public void start() {
     vm.setTurtle(proxy);
+    vm.setOutputListener(this::captureOutput);
     worker = new Thread(this::runProgram, "minesier-turtle");
     worker.setDaemon(true);
     worker.start();
   }
 
-  private void runProgram() {
-    List<String> out = vm.run(program);
-    if (out.stream().anyMatch(line -> line.startsWith("error:"))) {
-      world.visual(TurtleVisualAction.ERROR, "!");
-    }
+  private void captureOutput(String line) {
     synchronized (lock) {
-      output.addAll(out);
-      finished = true;
+      output.add(line);
+      streamedLines++;
       lock.notifyAll();
+    }
+  }
+
+  private void runProgram() {
+    try {
+      List<String> out = vm.run(program);
+      if (out.stream().anyMatch(line -> line.startsWith("error:"))) {
+        world.visual(TurtleVisualAction.ERROR, "!");
+      }
+      synchronized (lock) {
+        int tailStart = Math.min(streamedLines, out.size());
+        output.addAll(out.subList(tailStart, out.size()));
+        finished = true;
+        lock.notifyAll();
+      }
+    } finally {
+      vm.setOutputListener(null);
     }
   }
 
