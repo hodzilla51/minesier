@@ -41,6 +41,8 @@ public class TurtleAccess implements TurtleApi {
   private final NonNullList<ItemStack> equipment;
   private int selectedSlot;
   private final TurtleNetworkState network;
+  private BlockPos pendingDigTarget;
+  private BlockState pendingDigState;
 
   public TurtleAccess(
       Level level,
@@ -115,7 +117,7 @@ public class TurtleAccess implements TurtleApi {
       case "back" -> movementCost(facing.getOpposite()).ticks();
       case "up" -> movementCost(Direction.UP).ticks();
       case "down" -> movementCost(Direction.DOWN).ticks();
-      case "dig" -> digTicks(defaultTicks);
+      case "dig" -> beginDigTicks(defaultTicks);
       case "scan" -> hasProximitySensor() ? 20 : 0;
       default -> defaultTicks;
     };
@@ -126,13 +128,19 @@ public class TurtleAccess implements TurtleApi {
     if (!"dig".equals(op) || totalTicks <= 0 || !(level instanceof ServerLevel serverLevel)) {
       return;
     }
-    BlockPos target = pos.relative(facing);
-    if (level.getBlockState(target).canBeReplaced()) {
-      clearDigProgress(serverLevel, target);
+    if (!digTargetStillValid()) {
+      if (pendingDigTarget != null) {
+        clearDigProgress(serverLevel, pendingDigTarget);
+      }
       return;
     }
     int stage = Math.clamp((elapsedTicks * 10) / totalTicks, 0, 9);
-    serverLevel.destroyBlockProgress(digProgressId(target), target, stage);
+    serverLevel.destroyBlockProgress(digProgressId(pendingDigTarget), pendingDigTarget, stage);
+  }
+
+  @Override
+  public boolean actionStillValid(String op, Object[] args) {
+    return !"dig".equals(op) || digTargetStillValid();
   }
 
   @Override
@@ -140,7 +148,11 @@ public class TurtleAccess implements TurtleApi {
     if (!"dig".equals(op) || !(level instanceof ServerLevel serverLevel)) {
       return;
     }
-    clearDigProgress(serverLevel, pos.relative(facing));
+    if (pendingDigTarget != null) {
+      clearDigProgress(serverLevel, pendingDigTarget);
+    }
+    pendingDigTarget = null;
+    pendingDigState = null;
   }
 
   @Override
@@ -173,9 +185,9 @@ public class TurtleAccess implements TurtleApi {
 
   @Override
   public boolean dig() {
-    BlockPos target = pos.relative(facing);
+    BlockPos target = pendingDigTarget != null ? pendingDigTarget : pos.relative(facing);
     BlockState state = level.getBlockState(target);
-    if (state.canBeReplaced()) {
+    if (state.canBeReplaced() || !digTargetStillValid()) {
       return false; // nothing solid to dig
     }
     String pickupDetail = "GET";
@@ -208,22 +220,35 @@ public class TurtleAccess implements TurtleApi {
     return equipment.get(TurtleBlockEntity.EQUIPMENT_ARM);
   }
 
-  private int digTicks(int defaultTicks) {
+  private int beginDigTicks(int defaultTicks) {
     BlockPos target = pos.relative(facing);
     BlockState state = level.getBlockState(target);
     if (state.canBeReplaced()) {
+      pendingDigTarget = null;
+      pendingDigState = null;
       return defaultTicks;
     }
     float hardness = state.getDestroySpeed(level, target);
     if (hardness < 0f) {
+      pendingDigTarget = null;
+      pendingDigState = null;
       return defaultTicks;
     }
+    pendingDigTarget = target;
+    pendingDigState = state;
     ItemStack tool = armTool();
     float speed = Math.max(1.0f, tool.getDestroySpeed(state));
     boolean correctTool = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
     float divisor = correctTool ? 30.0f : 100.0f;
     int ticks = (int) Math.ceil((hardness * divisor) / speed);
     return Math.max(1, ticks);
+  }
+
+  private boolean digTargetStillValid() {
+    return pendingDigTarget != null
+        && pendingDigState != null
+        && level.isLoaded(pendingDigTarget)
+        && level.getBlockState(pendingDigTarget).equals(pendingDigState);
   }
 
   private void damageArmTool(BlockState state, BlockPos target) {

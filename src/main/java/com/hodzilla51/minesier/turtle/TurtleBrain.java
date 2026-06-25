@@ -150,6 +150,15 @@ public final class TurtleBrain {
       }
       if (ticksLeft > 0) {
         if (!performAtStart(op)) {
+          if (!world.actionStillValid(op, args)) {
+            result = Boolean.FALSE;
+            world.clearActionProgress(op, args);
+            reqPending = false;
+            executing = false;
+            resultReady = true;
+            lock.notifyAll();
+            return;
+          }
           world.actionProgress(op, args, actionTicksTotal - ticksLeft, actionTicksTotal);
         }
         ticksLeft--;

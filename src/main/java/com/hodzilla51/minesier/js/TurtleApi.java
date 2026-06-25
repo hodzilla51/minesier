@@ -78,6 +78,11 @@ public interface TurtleApi {
   /** Server-side action progress hook; not exposed to JavaScript. */
   default void actionProgress(String op, Object[] args, int elapsedTicks, int totalTicks) {}
 
+  /** Returns false when a delayed action should stop early and return false. */
+  default boolean actionStillValid(String op, Object[] args) {
+    return true;
+  }
+
   /** Clears any server-side progress visuals for the action. */
   default void clearActionProgress(String op, Object[] args) {}
 
