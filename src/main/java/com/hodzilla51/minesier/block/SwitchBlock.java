@@ -6,7 +6,9 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -32,11 +34,28 @@ public class SwitchBlock extends BaseEntityBlock {
   }
 
   @Override
+  public void setPlacedBy(
+      Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+    if (!level.isClientSide()
+        && placer instanceof ServerPlayer player
+        && level.getBlockEntity(pos) instanceof SwitchBlockEntity networkSwitch) {
+      networkSwitch.setOwner(player);
+    }
+  }
+
+  @Override
   protected InteractionResult useWithoutItem(
       BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
     if (!level.isClientSide()
         && player instanceof ServerPlayer serverPlayer
         && level.getBlockEntity(pos) instanceof SwitchBlockEntity networkSwitch) {
+      if (player.isShiftKeyDown()) {
+        networkSwitch.togglePublicAccess(serverPlayer);
+        return InteractionResult.SUCCESS;
+      }
+      if (!networkSwitch.ensureAccess(serverPlayer)) {
+        return InteractionResult.SUCCESS;
+      }
       ServerPlayNetworking.send(serverPlayer, new SwitchStatusS2C(pos, networkSwitch.statusText()));
     }
     return InteractionResult.SUCCESS;

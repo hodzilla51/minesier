@@ -29,7 +29,8 @@ import net.minecraft.world.level.storage.ValueOutput;
  * turtle.TurtleManager}'s brain (the block hops and its block entity is recreated); the brain
  * writes final state back here via {@link #applyResult}.
  */
-public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
+public class TurtleBlockEntity extends BlockEntity
+    implements ProgramStore, AccessControlledBlockEntity {
   private static final String KEY_TRANSCRIPT = "Transcript";
   private static final String KEY_FUEL = "Fuel";
   private static final String KEY_SELECTED = "SelectedSlot";
@@ -38,6 +39,9 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
   private static final String KEY_ARM = "ArmEquipment";
   private static final String KEY_TOP = "TopEquipment";
   private static final String KEY_ADDRESS = "NetworkAddress";
+  private static final String KEY_OWNER = "Owner";
+  private static final String KEY_OWNER_NAME = "OwnerName";
+  private static final String KEY_PUBLIC_ACCESS = "PublicAccess";
   private static final int INVENTORY_SIZE = 16;
   public static final int EQUIPMENT_SIZE = 3;
   public static final int EQUIPMENT_FOOT = 0;
@@ -59,6 +63,9 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
   private ItemStack disk = ItemStack.EMPTY;
   private NonNullList<ItemStack> equipment = NonNullList.withSize(EQUIPMENT_SIZE, ItemStack.EMPTY);
   private TurtleNetworkState network = new TurtleNetworkState();
+  private java.util.UUID ownerUuid;
+  private String ownerName = "";
+  private boolean publicAccess;
 
   public TurtleBlockEntity(BlockPos pos, BlockState state) {
     super(ModContent.TURTLE_BLOCK_ENTITY, pos, state);
@@ -99,6 +106,34 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
 
   public TurtleNetworkState getNetwork() {
     return network;
+  }
+
+  @Override
+  public java.util.UUID ownerUuid() {
+    return ownerUuid;
+  }
+
+  @Override
+  public String ownerName() {
+    return ownerName.isBlank() ? "unknown" : ownerName;
+  }
+
+  @Override
+  public boolean publicAccess() {
+    return publicAccess;
+  }
+
+  @Override
+  public void setOwner(net.minecraft.server.level.ServerPlayer player) {
+    this.ownerUuid = player.getUUID();
+    this.ownerName = AccessControlledBlockEntity.playerName(player);
+    setChanged();
+  }
+
+  @Override
+  public void setPublicAccess(boolean publicAccess) {
+    this.publicAccess = publicAccess;
+    setChanged();
   }
 
   /** Receives a frame from the physical cable segment on the specified turtle face. */
@@ -154,7 +189,10 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
       NonNullList<ItemStack> equipment,
       int selectedSlot,
       ItemStack disk,
-      String transcript) {
+      String transcript,
+      java.util.UUID ownerUuid,
+      String ownerName,
+      boolean publicAccess) {
     this.vm = vm;
     this.fuel = fuel;
     this.inventory = inventory;
@@ -165,6 +203,9 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
     for (String line : transcript.split("\n", -1)) {
       this.transcript.add(line);
     }
+    this.ownerUuid = ownerUuid;
+    this.ownerName = ownerName;
+    this.publicAccess = publicAccess;
     setChanged();
   }
 
@@ -186,6 +227,9 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
     this.equipment.set(EQUIPMENT_ARM, in.read(KEY_ARM, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.equipment.set(EQUIPMENT_TOP, in.read(KEY_TOP, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.network.setNetworkAddress(in.getStringOr(KEY_ADDRESS, network.getNetworkAddress()));
+    this.ownerUuid = parseUuid(in.getStringOr(KEY_OWNER, ""));
+    this.ownerName = in.getStringOr(KEY_OWNER_NAME, "");
+    this.publicAccess = in.getBooleanOr(KEY_PUBLIC_ACCESS, false);
   }
 
   @Override
@@ -202,6 +246,22 @@ public class TurtleBlockEntity extends BlockEntity implements ProgramStore {
     storeEquipment(out, KEY_ARM, equipment.get(EQUIPMENT_ARM));
     storeEquipment(out, KEY_TOP, equipment.get(EQUIPMENT_TOP));
     out.putString(KEY_ADDRESS, network.getNetworkAddress());
+    if (ownerUuid != null) {
+      out.putString(KEY_OWNER, ownerUuid.toString());
+    }
+    out.putString(KEY_OWNER_NAME, ownerName);
+    out.putBoolean(KEY_PUBLIC_ACCESS, publicAccess);
+  }
+
+  private static java.util.UUID parseUuid(String value) {
+    if (value.isBlank()) {
+      return null;
+    }
+    try {
+      return java.util.UUID.fromString(value);
+    } catch (IllegalArgumentException ignored) {
+      return null;
+    }
   }
 
   private static void storeEquipment(ValueOutput out, String key, ItemStack stack) {

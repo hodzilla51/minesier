@@ -35,12 +35,16 @@ import net.minecraft.world.level.storage.ValueOutput;
  * JsComputer} (live scope) is transient, rebuilt on load — variables defined in a previous session
  * are intentionally not restored yet.
  */
-public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
+public class ComputerBlockEntity extends BlockEntity
+    implements ProgramStore, AccessControlledBlockEntity {
   private static final String KEY_TRANSCRIPT = "Transcript";
   private static final String KEY_DISK = "Disk";
   private static final String KEY_ADDRESS = "NetworkAddress";
   private static final String KEY_REDSTONE_OUT = "RedstoneOut";
   private static final String KEY_RESIDENT = "ResidentSource";
+  private static final String KEY_OWNER = "Owner";
+  private static final String KEY_OWNER_NAME = "OwnerName";
+  private static final String KEY_PUBLIC_ACCESS = "PublicAccess";
   private static final String WELCOME =
       String.join(
           "\n",
@@ -61,6 +65,9 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 
   private ItemStack disk = ItemStack.EMPTY;
   private String networkAddress = formatAddress(UUID.randomUUID());
+  private UUID ownerUuid;
+  private String ownerName = "";
+  private boolean publicAccess;
 
   /**
    * The program that established the current resident daemon, persisted so the daemon survives a
@@ -91,6 +98,34 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
 
   public String getNetworkAddress() {
     return networkAddress;
+  }
+
+  @Override
+  public UUID ownerUuid() {
+    return ownerUuid;
+  }
+
+  @Override
+  public String ownerName() {
+    return ownerName.isBlank() ? "unknown" : ownerName;
+  }
+
+  @Override
+  public boolean publicAccess() {
+    return publicAccess;
+  }
+
+  @Override
+  public void setOwner(net.minecraft.server.level.ServerPlayer player) {
+    this.ownerUuid = player.getUUID();
+    this.ownerName = AccessControlledBlockEntity.playerName(player);
+    setChanged();
+  }
+
+  @Override
+  public void setPublicAccess(boolean publicAccess) {
+    this.publicAccess = publicAccess;
+    setChanged();
   }
 
   /** Called by the physical cable medium for the NIC attached to {@code face}. */
@@ -285,6 +320,9 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     this.residentSource = in.getStringOr(KEY_RESIDENT, "");
     // A daemon was running when saved; re-run its source on the first tick after loading.
     this.pendingRestart = !residentSource.isEmpty();
+    this.ownerUuid = parseUuid(in.getStringOr(KEY_OWNER, ""));
+    this.ownerName = in.getStringOr(KEY_OWNER_NAME, "");
+    this.publicAccess = in.getBooleanOr(KEY_PUBLIC_ACCESS, false);
   }
 
   @Override
@@ -298,6 +336,22 @@ public class ComputerBlockEntity extends BlockEntity implements ProgramStore {
     out.putIntArray(KEY_REDSTONE_OUT, redstoneOutputs.clone());
     if (!residentSource.isEmpty()) {
       out.putString(KEY_RESIDENT, residentSource);
+    }
+    if (ownerUuid != null) {
+      out.putString(KEY_OWNER, ownerUuid.toString());
+    }
+    out.putString(KEY_OWNER_NAME, ownerName);
+    out.putBoolean(KEY_PUBLIC_ACCESS, publicAccess);
+  }
+
+  private static UUID parseUuid(String value) {
+    if (value.isBlank()) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException ignored) {
+      return null;
     }
   }
 

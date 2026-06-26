@@ -9,6 +9,7 @@ import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -106,7 +107,18 @@ public final class TurtleManager {
     // Carry the inserted disk across any movement (its data rides on the item itself).
     ItemStack disk = be.getDisk();
 
-    ACTIVE.add(new Running(brain, world, vm, player, level, base, disk));
+    ACTIVE.add(
+        new Running(
+            brain,
+            world,
+            vm,
+            player,
+            level,
+            base,
+            disk,
+            be.ownerUuid(),
+            be.ownerName(),
+            be.publicAccess()));
     brain.start();
   }
 
@@ -149,7 +161,10 @@ public final class TurtleManager {
           r.world.equipment(),
           r.world.selectedSlot(),
           r.disk,
-          transcript);
+          transcript,
+          r.ownerUuid,
+          r.ownerName,
+          r.publicAccess);
     }
     ServerPlayNetworking.send(r.player, new TerminalScreenS2C(endPos, transcript, false));
   }
@@ -187,6 +202,9 @@ public final class TurtleManager {
     final Level level;
     final List<String> baseTranscript;
     final ItemStack disk;
+    final UUID ownerUuid;
+    final String ownerName;
+    final boolean publicAccess;
     int ticks;
 
     Running(
@@ -196,7 +214,10 @@ public final class TurtleManager {
         ServerPlayer player,
         Level level,
         List<String> baseTranscript,
-        ItemStack disk) {
+        ItemStack disk,
+        UUID ownerUuid,
+        String ownerName,
+        boolean publicAccess) {
       this.brain = brain;
       this.world = world;
       this.vm = vm;
@@ -204,6 +225,9 @@ public final class TurtleManager {
       this.level = level;
       this.baseTranscript = baseTranscript;
       this.disk = disk;
+      this.ownerUuid = ownerUuid;
+      this.ownerName = ownerName;
+      this.publicAccess = publicAccess;
     }
   }
 }

@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.net;
 
+import com.hodzilla51.minesier.block.AccessControlledBlockEntity;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.ProgramStore;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
@@ -97,7 +98,8 @@ public final class MineSIerNet {
     BlockPos pos = p.pos();
     if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
         || !(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)
-        || TurtleManager.isRunning(level, pos)) {
+        || TurtleManager.isRunning(level, pos)
+        || !turtle.ensureAccess(player)) {
       return;
     }
     player.openMenu(new TurtleMenuProvider(turtle, pos, p.screenWidth(), p.screenHeight()));
@@ -108,7 +110,8 @@ public final class MineSIerNet {
     BlockPos pos = p.pos();
     if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
         || !(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)
-        || TurtleManager.isRunning(level, pos)) {
+        || TurtleManager.isRunning(level, pos)
+        || !turtle.ensureAccess(player)) {
       return;
     }
     player.openMenu(
@@ -131,7 +134,8 @@ public final class MineSIerNet {
     BlockPos pos = p.pos();
     if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
         || !(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)
-        || TurtleManager.isRunning(level, pos)) {
+        || TurtleManager.isRunning(level, pos)
+        || !turtle.ensureAccess(player)) {
       return;
     }
     if (isTurtleMenuAt(player, pos)) {
@@ -161,6 +165,9 @@ public final class MineSIerNet {
       return;
     }
     if (!(level.getBlockEntity(pos) instanceof ProgramStore store)) {
+      return;
+    }
+    if (store instanceof AccessControlledBlockEntity access && !access.ensureAccess(player)) {
       return;
     }
     if (p.action() == ProgramActionC2S.EJECT) {
@@ -272,10 +279,16 @@ public final class MineSIerNet {
     if (distSqr > REACH_SQR) {
       return; // too far — ignore (anti-cheat / stale packet)
     }
-    if (level.getBlockEntity(pos) instanceof TurtleBlockEntity) {
+    if (level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
+      if (!turtle.ensureAccess(player)) {
+        return;
+      }
       // Turtle programs run tick-paced on a worker thread; the manager drives + replies.
       TurtleManager.run(level, pos, player, payload.command());
     } else if (level.getBlockEntity(pos) instanceof ComputerBlockEntity computer) {
+      if (!computer.ensureAccess(player)) {
+        return;
+      }
       computer.runCommand(payload.command());
       ServerPlayNetworking.send(
           player, new TerminalScreenS2C(pos, computer.getTranscript(), false));

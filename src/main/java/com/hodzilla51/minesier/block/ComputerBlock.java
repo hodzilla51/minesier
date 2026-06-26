@@ -10,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -63,6 +64,16 @@ public class ComputerBlock extends BaseEntityBlock {
   }
 
   @Override
+  public void setPlacedBy(
+      Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+    if (!level.isClientSide()
+        && placer instanceof ServerPlayer player
+        && level.getBlockEntity(pos) instanceof ComputerBlockEntity computer) {
+      computer.setOwner(player);
+    }
+  }
+
+  @Override
   public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
       Level level, BlockState state, BlockEntityType<T> type) {
     if (level.isClientSide()) {
@@ -86,13 +97,15 @@ public class ComputerBlock extends BaseEntityBlock {
         && level.getBlockEntity(pos) instanceof ComputerBlockEntity computer
         && computer.getDisk().isEmpty()) {
       if (!level.isClientSide()) {
+        if (!(player instanceof ServerPlayer serverPlayer)
+            || !computer.ensureAccess(serverPlayer)) {
+          return InteractionResult.SUCCESS;
+        }
         computer.setDisk(stack.copyWithCount(1));
         stack.shrink(1);
         // Slotting a disk boots its `startup.js` program (if any), so a daemon can auto-run.
         computer.bootStartup();
-        if (player instanceof ServerPlayer serverPlayer) {
-          MineSIerNet.sendProgramList(serverPlayer, computer);
-        }
+        MineSIerNet.sendProgramList(serverPlayer, computer);
       }
       return InteractionResult.SUCCESS;
     }
@@ -106,6 +119,13 @@ public class ComputerBlock extends BaseEntityBlock {
     if (!level.isClientSide()
         && player instanceof ServerPlayer serverPlayer
         && level.getBlockEntity(pos) instanceof ComputerBlockEntity computer) {
+      if (player.isShiftKeyDown()) {
+        computer.togglePublicAccess(serverPlayer);
+        return InteractionResult.SUCCESS;
+      }
+      if (!computer.ensureAccess(serverPlayer)) {
+        return InteractionResult.SUCCESS;
+      }
       ServerPlayNetworking.send(
           serverPlayer, new TerminalScreenS2C(pos, computer.getTranscript(), true));
       MineSIerNet.sendProgramList(serverPlayer, computer);
