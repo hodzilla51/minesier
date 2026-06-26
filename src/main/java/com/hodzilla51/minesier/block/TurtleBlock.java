@@ -10,7 +10,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -71,16 +70,6 @@ public class TurtleBlock extends BaseEntityBlock {
   }
 
   @Override
-  public void setPlacedBy(
-      Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
-    if (!level.isClientSide()
-        && placer instanceof ServerPlayer player
-        && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
-      turtle.setOwner(player);
-    }
-  }
-
-  @Override
   public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
     // Spill the turtle's inventory when a player breaks it (block hops never call this).
     if (!level.isClientSide() && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
@@ -126,7 +115,7 @@ public class TurtleBlock extends BaseEntityBlock {
         && player instanceof ServerPlayer serverPlayer
         && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
       if (player.isShiftKeyDown()) {
-        turtle.togglePublicAccess(serverPlayer);
+        turtle.sendAccessPrompt(serverPlayer);
         return InteractionResult.SUCCESS;
       }
       if (!turtle.ensureAccess(serverPlayer)) {

@@ -1,6 +1,7 @@
 package com.hodzilla51.minesier.client;
 
 import com.hodzilla51.minesier.ModContent;
+import com.hodzilla51.minesier.net.AccessPromptS2C;
 import com.hodzilla51.minesier.net.LoadProgramS2C;
 import com.hodzilla51.minesier.net.ProgramListS2C;
 import com.hodzilla51.minesier.net.SwitchStatusS2C;
@@ -102,6 +103,18 @@ public class MineSIerClient implements ClientModInitializer {
         ProgramListS2C.TYPE,
         (payload, context) ->
             context.client().execute(() -> ComputerScreen.showPrograms(payload.names())));
+
+    ClientPlayNetworking.registerGlobalReceiver(
+        AccessPromptS2C.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(
+                    () ->
+                        context
+                            .client()
+                            .setScreenAndShow(
+                                new AccessPromptScreen(payload.pos(), payload.mode()))));
 
     ClientPlayNetworking.registerGlobalReceiver(
         SwitchStatusS2C.TYPE,

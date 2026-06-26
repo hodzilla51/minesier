@@ -14,8 +14,10 @@ import com.hodzilla51.minesier.net.WirelessNetwork;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -42,9 +44,10 @@ public class ComputerBlockEntity extends BlockEntity
   private static final String KEY_ADDRESS = "NetworkAddress";
   private static final String KEY_REDSTONE_OUT = "RedstoneOut";
   private static final String KEY_RESIDENT = "ResidentSource";
-  private static final String KEY_OWNER = "Owner";
-  private static final String KEY_OWNER_NAME = "OwnerName";
-  private static final String KEY_PUBLIC_ACCESS = "PublicAccess";
+  private static final String KEY_ACCESS_MODE = "AccessMode";
+  private static final String KEY_PASSWORD_SALT = "PasswordSalt";
+  private static final String KEY_PASSWORD_HASH = "PasswordHash";
+  private static final String KEY_PUBLIC_ACCESS = "PublicAccess"; // legacy owner/public migration
   private static final String WELCOME =
       String.join(
           "\n",
@@ -65,9 +68,10 @@ public class ComputerBlockEntity extends BlockEntity
 
   private ItemStack disk = ItemStack.EMPTY;
   private String networkAddress = formatAddress(UUID.randomUUID());
-  private UUID ownerUuid;
-  private String ownerName = "";
-  private boolean publicAccess;
+  private String accessMode = AccessControlledBlockEntity.MODE_UNCONFIGURED;
+  private String passwordSalt = "";
+  private String passwordHash = "";
+  private final Set<UUID> authorizedPlayers = new HashSet<>();
 
   /**
    * The program that established the current resident daemon, persisted so the daemon survives a
@@ -101,30 +105,40 @@ public class ComputerBlockEntity extends BlockEntity
   }
 
   @Override
-  public UUID ownerUuid() {
-    return ownerUuid;
+  public String accessMode() {
+    return accessMode;
   }
 
   @Override
-  public String ownerName() {
-    return ownerName.isBlank() ? "unknown" : ownerName;
+  public String passwordSalt() {
+    return passwordSalt;
   }
 
   @Override
-  public boolean publicAccess() {
-    return publicAccess;
+  public String passwordHash() {
+    return passwordHash;
   }
 
   @Override
-  public void setOwner(net.minecraft.server.level.ServerPlayer player) {
-    this.ownerUuid = player.getUUID();
-    this.ownerName = AccessControlledBlockEntity.playerName(player);
-    setChanged();
+  public boolean isAuthorized(UUID player) {
+    return authorizedPlayers.contains(player);
   }
 
   @Override
-  public void setPublicAccess(boolean publicAccess) {
-    this.publicAccess = publicAccess;
+  public void authorize(UUID player) {
+    authorizedPlayers.add(player);
+  }
+
+  @Override
+  public void clearAuthorizations() {
+    authorizedPlayers.clear();
+  }
+
+  @Override
+  public void setAccessState(String mode, String salt, String hash) {
+    this.accessMode = mode;
+    this.passwordSalt = salt;
+    this.passwordHash = hash;
     setChanged();
   }
 
@@ -320,9 +334,15 @@ public class ComputerBlockEntity extends BlockEntity
     this.residentSource = in.getStringOr(KEY_RESIDENT, "");
     // A daemon was running when saved; re-run its source on the first tick after loading.
     this.pendingRestart = !residentSource.isEmpty();
-    this.ownerUuid = parseUuid(in.getStringOr(KEY_OWNER, ""));
-    this.ownerName = in.getStringOr(KEY_OWNER_NAME, "");
-    this.publicAccess = in.getBooleanOr(KEY_PUBLIC_ACCESS, false);
+    this.accessMode = in.getStringOr(KEY_ACCESS_MODE, "");
+    this.passwordSalt = in.getStringOr(KEY_PASSWORD_SALT, "");
+    this.passwordHash = in.getStringOr(KEY_PASSWORD_HASH, "");
+    if (accessMode.isBlank()) {
+      this.accessMode =
+          in.getBooleanOr(KEY_PUBLIC_ACCESS, false)
+              ? AccessControlledBlockEntity.MODE_PUBLIC
+              : AccessControlledBlockEntity.MODE_UNCONFIGURED;
+    }
   }
 
   @Override
@@ -337,22 +357,9 @@ public class ComputerBlockEntity extends BlockEntity
     if (!residentSource.isEmpty()) {
       out.putString(KEY_RESIDENT, residentSource);
     }
-    if (ownerUuid != null) {
-      out.putString(KEY_OWNER, ownerUuid.toString());
-    }
-    out.putString(KEY_OWNER_NAME, ownerName);
-    out.putBoolean(KEY_PUBLIC_ACCESS, publicAccess);
-  }
-
-  private static UUID parseUuid(String value) {
-    if (value.isBlank()) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+    out.putString(KEY_ACCESS_MODE, accessMode);
+    out.putString(KEY_PASSWORD_SALT, passwordSalt);
+    out.putString(KEY_PASSWORD_HASH, passwordHash);
   }
 
   private static String formatAddress(UUID uuid) {

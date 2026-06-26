@@ -30,6 +30,7 @@ public final class MineSIerNet {
   /** Must run on BOTH client and server (common init) so the codecs are known. */
   public static void registerPayloads() {
     PayloadTypeRegistry.serverboundPlay().register(RunCommandC2S.TYPE, RunCommandC2S.CODEC);
+    PayloadTypeRegistry.serverboundPlay().register(AccessActionC2S.TYPE, AccessActionC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay().register(ProgramActionC2S.TYPE, ProgramActionC2S.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(OpenTurtleInventoryC2S.TYPE, OpenTurtleInventoryC2S.CODEC);
@@ -45,6 +46,7 @@ public final class MineSIerNet {
     PayloadTypeRegistry.clientboundPlay().register(LoadProgramS2C.TYPE, LoadProgramS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(ProgramListS2C.TYPE, ProgramListS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(SwitchStatusS2C.TYPE, SwitchStatusS2C.CODEC);
+    PayloadTypeRegistry.clientboundPlay().register(AccessPromptS2C.TYPE, AccessPromptS2C.CODEC);
   }
 
   /** Pushes the disk's program names to the player's open terminal (for the file tree pane). */
@@ -60,6 +62,12 @@ public final class MineSIerNet {
           ServerPlayer player = context.player();
           // Network thread -> hop to the server thread before touching the world.
           context.server().execute(() -> handleRun(player, payload));
+        });
+    ServerPlayNetworking.registerGlobalReceiver(
+        AccessActionC2S.TYPE,
+        (payload, context) -> {
+          ServerPlayer player = context.player();
+          context.server().execute(() -> handleAccess(player, payload));
         });
     ServerPlayNetworking.registerGlobalReceiver(
         ProgramActionC2S.TYPE,
@@ -91,6 +99,17 @@ public final class MineSIerNet {
           ServerPlayer player = context.player();
           context.server().execute(() -> handleOpenTerminal(player, payload));
         });
+  }
+
+  private static void handleAccess(ServerPlayer player, AccessActionC2S p) {
+    Level level = player.level();
+    BlockPos pos = p.pos();
+    if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR) {
+      return;
+    }
+    if (level.getBlockEntity(pos) instanceof AccessControlledBlockEntity access) {
+      access.handleAccessAction(player, p.action(), p.secret());
+    }
   }
 
   private static void handleOpenInventory(ServerPlayer player, OpenTurtleInventoryC2S p) {

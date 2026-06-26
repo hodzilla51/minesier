@@ -6,7 +6,9 @@ import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.turtle.TurtleNetworkState;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
@@ -39,9 +41,10 @@ public class TurtleBlockEntity extends BlockEntity
   private static final String KEY_ARM = "ArmEquipment";
   private static final String KEY_TOP = "TopEquipment";
   private static final String KEY_ADDRESS = "NetworkAddress";
-  private static final String KEY_OWNER = "Owner";
-  private static final String KEY_OWNER_NAME = "OwnerName";
-  private static final String KEY_PUBLIC_ACCESS = "PublicAccess";
+  private static final String KEY_ACCESS_MODE = "AccessMode";
+  private static final String KEY_PASSWORD_SALT = "PasswordSalt";
+  private static final String KEY_PASSWORD_HASH = "PasswordHash";
+  private static final String KEY_PUBLIC_ACCESS = "PublicAccess"; // legacy owner/public migration
   private static final int INVENTORY_SIZE = 16;
   public static final int EQUIPMENT_SIZE = 3;
   public static final int EQUIPMENT_FOOT = 0;
@@ -63,9 +66,10 @@ public class TurtleBlockEntity extends BlockEntity
   private ItemStack disk = ItemStack.EMPTY;
   private NonNullList<ItemStack> equipment = NonNullList.withSize(EQUIPMENT_SIZE, ItemStack.EMPTY);
   private TurtleNetworkState network = new TurtleNetworkState();
-  private java.util.UUID ownerUuid;
-  private String ownerName = "";
-  private boolean publicAccess;
+  private String accessMode = AccessControlledBlockEntity.MODE_UNCONFIGURED;
+  private String passwordSalt = "";
+  private String passwordHash = "";
+  private final Set<java.util.UUID> authorizedPlayers = new HashSet<>();
 
   public TurtleBlockEntity(BlockPos pos, BlockState state) {
     super(ModContent.TURTLE_BLOCK_ENTITY, pos, state);
@@ -109,30 +113,40 @@ public class TurtleBlockEntity extends BlockEntity
   }
 
   @Override
-  public java.util.UUID ownerUuid() {
-    return ownerUuid;
+  public String accessMode() {
+    return accessMode;
   }
 
   @Override
-  public String ownerName() {
-    return ownerName.isBlank() ? "unknown" : ownerName;
+  public String passwordSalt() {
+    return passwordSalt;
   }
 
   @Override
-  public boolean publicAccess() {
-    return publicAccess;
+  public String passwordHash() {
+    return passwordHash;
   }
 
   @Override
-  public void setOwner(net.minecraft.server.level.ServerPlayer player) {
-    this.ownerUuid = player.getUUID();
-    this.ownerName = AccessControlledBlockEntity.playerName(player);
-    setChanged();
+  public boolean isAuthorized(java.util.UUID player) {
+    return authorizedPlayers.contains(player);
   }
 
   @Override
-  public void setPublicAccess(boolean publicAccess) {
-    this.publicAccess = publicAccess;
+  public void authorize(java.util.UUID player) {
+    authorizedPlayers.add(player);
+  }
+
+  @Override
+  public void clearAuthorizations() {
+    authorizedPlayers.clear();
+  }
+
+  @Override
+  public void setAccessState(String mode, String salt, String hash) {
+    this.accessMode = mode;
+    this.passwordSalt = salt;
+    this.passwordHash = hash;
     setChanged();
   }
 
@@ -190,9 +204,9 @@ public class TurtleBlockEntity extends BlockEntity
       int selectedSlot,
       ItemStack disk,
       String transcript,
-      java.util.UUID ownerUuid,
-      String ownerName,
-      boolean publicAccess) {
+      String accessMode,
+      String passwordSalt,
+      String passwordHash) {
     this.vm = vm;
     this.fuel = fuel;
     this.inventory = inventory;
@@ -203,9 +217,9 @@ public class TurtleBlockEntity extends BlockEntity
     for (String line : transcript.split("\n", -1)) {
       this.transcript.add(line);
     }
-    this.ownerUuid = ownerUuid;
-    this.ownerName = ownerName;
-    this.publicAccess = publicAccess;
+    this.accessMode = accessMode;
+    this.passwordSalt = passwordSalt;
+    this.passwordHash = passwordHash;
     setChanged();
   }
 
@@ -227,9 +241,15 @@ public class TurtleBlockEntity extends BlockEntity
     this.equipment.set(EQUIPMENT_ARM, in.read(KEY_ARM, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.equipment.set(EQUIPMENT_TOP, in.read(KEY_TOP, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.network.setNetworkAddress(in.getStringOr(KEY_ADDRESS, network.getNetworkAddress()));
-    this.ownerUuid = parseUuid(in.getStringOr(KEY_OWNER, ""));
-    this.ownerName = in.getStringOr(KEY_OWNER_NAME, "");
-    this.publicAccess = in.getBooleanOr(KEY_PUBLIC_ACCESS, false);
+    this.accessMode = in.getStringOr(KEY_ACCESS_MODE, "");
+    this.passwordSalt = in.getStringOr(KEY_PASSWORD_SALT, "");
+    this.passwordHash = in.getStringOr(KEY_PASSWORD_HASH, "");
+    if (accessMode.isBlank()) {
+      this.accessMode =
+          in.getBooleanOr(KEY_PUBLIC_ACCESS, false)
+              ? AccessControlledBlockEntity.MODE_PUBLIC
+              : AccessControlledBlockEntity.MODE_UNCONFIGURED;
+    }
   }
 
   @Override
@@ -246,22 +266,9 @@ public class TurtleBlockEntity extends BlockEntity
     storeEquipment(out, KEY_ARM, equipment.get(EQUIPMENT_ARM));
     storeEquipment(out, KEY_TOP, equipment.get(EQUIPMENT_TOP));
     out.putString(KEY_ADDRESS, network.getNetworkAddress());
-    if (ownerUuid != null) {
-      out.putString(KEY_OWNER, ownerUuid.toString());
-    }
-    out.putString(KEY_OWNER_NAME, ownerName);
-    out.putBoolean(KEY_PUBLIC_ACCESS, publicAccess);
-  }
-
-  private static java.util.UUID parseUuid(String value) {
-    if (value.isBlank()) {
-      return null;
-    }
-    try {
-      return java.util.UUID.fromString(value);
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+    out.putString(KEY_ACCESS_MODE, accessMode);
+    out.putString(KEY_PASSWORD_SALT, passwordSalt);
+    out.putString(KEY_PASSWORD_HASH, passwordHash);
   }
 
   private static void storeEquipment(ValueOutput out, String key, ItemStack stack) {

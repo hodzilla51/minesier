@@ -4,13 +4,14 @@ import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkManager;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
@@ -20,9 +21,10 @@ import net.minecraft.world.level.storage.ValueOutput;
 public class SwitchBlockEntity extends BlockEntity implements AccessControlledBlockEntity {
   private static final int MAX_MAC_ENTRIES = 256;
   private static final long MAC_AGE_TICKS = 6_000; // Five minutes at 20 ticks per second.
-  private static final String KEY_OWNER = "Owner";
-  private static final String KEY_OWNER_NAME = "OwnerName";
-  private static final String KEY_PUBLIC_ACCESS = "PublicAccess";
+  private static final String KEY_ACCESS_MODE = "AccessMode";
+  private static final String KEY_PASSWORD_SALT = "PasswordSalt";
+  private static final String KEY_PASSWORD_HASH = "PasswordHash";
+  private static final String KEY_PUBLIC_ACCESS = "PublicAccess"; // legacy owner/public migration
   private final long[] rxFrames = new long[Direction.values().length];
   private final long[] txFrames = new long[Direction.values().length];
   private final Map<String, MacEntry> macTable =
@@ -32,39 +34,50 @@ public class SwitchBlockEntity extends BlockEntity implements AccessControlledBl
           return size() > MAX_MAC_ENTRIES;
         }
       };
-  private java.util.UUID ownerUuid;
-  private String ownerName = "";
-  private boolean publicAccess;
+  private String accessMode = AccessControlledBlockEntity.MODE_UNCONFIGURED;
+  private String passwordSalt = "";
+  private String passwordHash = "";
+  private final Set<java.util.UUID> authorizedPlayers = new HashSet<>();
 
   public SwitchBlockEntity(BlockPos pos, BlockState state) {
     super(ModContent.SWITCH_BLOCK_ENTITY, pos, state);
   }
 
   @Override
-  public java.util.UUID ownerUuid() {
-    return ownerUuid;
+  public String accessMode() {
+    return accessMode;
   }
 
   @Override
-  public String ownerName() {
-    return ownerName.isBlank() ? "unknown" : ownerName;
+  public String passwordSalt() {
+    return passwordSalt;
   }
 
   @Override
-  public boolean publicAccess() {
-    return publicAccess;
+  public String passwordHash() {
+    return passwordHash;
   }
 
   @Override
-  public void setOwner(ServerPlayer player) {
-    this.ownerUuid = player.getUUID();
-    this.ownerName = AccessControlledBlockEntity.playerName(player);
-    setChanged();
+  public boolean isAuthorized(java.util.UUID player) {
+    return authorizedPlayers.contains(player);
   }
 
   @Override
-  public void setPublicAccess(boolean publicAccess) {
-    this.publicAccess = publicAccess;
+  public void authorize(java.util.UUID player) {
+    authorizedPlayers.add(player);
+  }
+
+  @Override
+  public void clearAuthorizations() {
+    authorizedPlayers.clear();
+  }
+
+  @Override
+  public void setAccessState(String mode, String salt, String hash) {
+    this.accessMode = mode;
+    this.passwordSalt = salt;
+    this.passwordHash = hash;
     setChanged();
   }
 
@@ -163,30 +176,23 @@ public class SwitchBlockEntity extends BlockEntity implements AccessControlledBl
   @Override
   protected void loadAdditional(ValueInput in) {
     super.loadAdditional(in);
-    this.ownerUuid = parseUuid(in.getStringOr(KEY_OWNER, ""));
-    this.ownerName = in.getStringOr(KEY_OWNER_NAME, "");
-    this.publicAccess = in.getBooleanOr(KEY_PUBLIC_ACCESS, false);
+    this.accessMode = in.getStringOr(KEY_ACCESS_MODE, "");
+    this.passwordSalt = in.getStringOr(KEY_PASSWORD_SALT, "");
+    this.passwordHash = in.getStringOr(KEY_PASSWORD_HASH, "");
+    if (accessMode.isBlank()) {
+      this.accessMode =
+          in.getBooleanOr(KEY_PUBLIC_ACCESS, false)
+              ? AccessControlledBlockEntity.MODE_PUBLIC
+              : AccessControlledBlockEntity.MODE_UNCONFIGURED;
+    }
   }
 
   @Override
   protected void saveAdditional(ValueOutput out) {
     super.saveAdditional(out);
-    if (ownerUuid != null) {
-      out.putString(KEY_OWNER, ownerUuid.toString());
-    }
-    out.putString(KEY_OWNER_NAME, ownerName);
-    out.putBoolean(KEY_PUBLIC_ACCESS, publicAccess);
-  }
-
-  private static java.util.UUID parseUuid(String value) {
-    if (value.isBlank()) {
-      return null;
-    }
-    try {
-      return java.util.UUID.fromString(value);
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+    out.putString(KEY_ACCESS_MODE, accessMode);
+    out.putString(KEY_PASSWORD_SALT, passwordSalt);
+    out.putString(KEY_PASSWORD_HASH, passwordHash);
   }
 
   private record MacEntry(Direction port, long lastSeenTick) {}

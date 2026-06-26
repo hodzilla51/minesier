@@ -9,7 +9,6 @@ import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -116,9 +115,9 @@ public final class TurtleManager {
             level,
             base,
             disk,
-            be.ownerUuid(),
-            be.ownerName(),
-            be.publicAccess()));
+            be.accessMode(),
+            be.passwordSalt(),
+            be.passwordHash()));
     brain.start();
   }
 
@@ -162,9 +161,9 @@ public final class TurtleManager {
           r.world.selectedSlot(),
           r.disk,
           transcript,
-          r.ownerUuid,
-          r.ownerName,
-          r.publicAccess);
+          r.accessMode,
+          r.passwordSalt,
+          r.passwordHash);
     }
     ServerPlayNetworking.send(r.player, new TerminalScreenS2C(endPos, transcript, false));
   }
@@ -202,9 +201,9 @@ public final class TurtleManager {
     final Level level;
     final List<String> baseTranscript;
     final ItemStack disk;
-    final UUID ownerUuid;
-    final String ownerName;
-    final boolean publicAccess;
+    final String accessMode;
+    final String passwordSalt;
+    final String passwordHash;
     int ticks;
 
     Running(
@@ -215,9 +214,9 @@ public final class TurtleManager {
         Level level,
         List<String> baseTranscript,
         ItemStack disk,
-        UUID ownerUuid,
-        String ownerName,
-        boolean publicAccess) {
+        String accessMode,
+        String passwordSalt,
+        String passwordHash) {
       this.brain = brain;
       this.world = world;
       this.vm = vm;
@@ -225,9 +224,9 @@ public final class TurtleManager {
       this.level = level;
       this.baseTranscript = baseTranscript;
       this.disk = disk;
-      this.ownerUuid = ownerUuid;
-      this.ownerName = ownerName;
-      this.publicAccess = publicAccess;
+      this.accessMode = accessMode;
+      this.passwordSalt = passwordSalt;
+      this.passwordHash = passwordHash;
     }
   }
 }
