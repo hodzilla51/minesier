@@ -33,7 +33,8 @@ public interface AccessControlledBlockEntity {
   void setAccessState(String mode, String salt, String hash);
 
   default boolean canAccess(ServerPlayer player) {
-    return MODE_PUBLIC.equals(accessMode())
+    return MODE_UNCONFIGURED.equals(accessMode())
+        || MODE_PUBLIC.equals(accessMode())
         || (MODE_PASSWORD.equals(accessMode()) && isAuthorized(player.getUUID()));
   }
 
