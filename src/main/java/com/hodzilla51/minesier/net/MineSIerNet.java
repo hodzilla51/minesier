@@ -4,15 +4,15 @@ import com.hodzilla51.minesier.block.AccessControlledBlockEntity;
 import com.hodzilla51.minesier.block.ComputerBlockEntity;
 import com.hodzilla51.minesier.block.ProgramStore;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
-import com.hodzilla51.minesier.item.DiskContents;
+import com.hodzilla51.minesier.disk.DiskStorage;
+import com.hodzilla51.minesier.disk.FileSystemProvider;
+import com.hodzilla51.minesier.net.ProcessStateS2C;
+import com.hodzilla51.minesier.net.StopProcessC2S;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenuProvider;
 import com.hodzilla51.minesier.menu.TurtleMenu;
 import com.hodzilla51.minesier.menu.TurtleMenuProvider;
 import com.hodzilla51.minesier.turtle.TurtleManager;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -47,6 +47,9 @@ public final class MineSIerNet {
     PayloadTypeRegistry.clientboundPlay().register(ProgramListS2C.TYPE, ProgramListS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(SwitchStatusS2C.TYPE, SwitchStatusS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(AccessPromptS2C.TYPE, AccessPromptS2C.CODEC);
+    PayloadTypeRegistry.serverboundPlay().register(StopProcessC2S.TYPE, StopProcessC2S.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
+        .register(ProcessStateS2C.TYPE, ProcessStateS2C.CODEC);
   }
 
   /** Pushes the disk's program names to the player's open terminal (for the file tree pane). */
@@ -98,6 +101,12 @@ public final class MineSIerNet {
         (payload, context) -> {
           ServerPlayer player = context.player();
           context.server().execute(() -> handleOpenTerminal(player, payload));
+        });
+    ServerPlayNetworking.registerGlobalReceiver(
+        StopProcessC2S.TYPE,
+        (payload, context) -> {
+          ServerPlayer player = context.player();
+          context.server().execute(() -> handleStop(player, payload));
         });
   }
 
@@ -165,6 +174,7 @@ public final class MineSIerNet {
     ServerPlayNetworking.send(
         player, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
     sendProgramList(player, turtle);
+    ServerPlayNetworking.send(player, new ProcessStateS2C(false, ""));
   }
 
   private static boolean isTurtleMenuAt(ServerPlayer player, BlockPos pos) {
@@ -193,37 +203,67 @@ public final class MineSIerNet {
       ejectDisk(player, pos, store);
       return;
     }
-    if (!store.hasDisk()) {
-      note(player, pos, store, "no disk inserted");
-      return;
-    }
+    // File operations route to C: (local) or D: (disk) based on path prefix.
+    // Individual methods return false if the target storage is unavailable.
     switch (p.action()) {
       case ProgramActionC2S.SAVE -> {
-        String path = DiskContents.normalizePath(p.name());
-        if (path == null || !store.saveFile(path, p.source())) {
-          note(player, pos, store, "invalid path: " + p.name());
-        } else {
-          note(player, pos, store, "saved: " + path);
-          sendProgramList(player, store);
+        String[] dp = ProgramStore.parseDrivePath(p.name());
+        if (dp == null) {
+          note(player, pos, store, "save failed: null path");
+          break;
         }
+        String normalized = DiskStorage.normalizePath(dp[1]);
+        if (normalized == null) {
+          note(player, pos, store, "save failed: bad filename [" + dp[1] + "]");
+          break;
+        }
+        FileSystemProvider provider = store.providerFor(dp[0]);
+        if (provider == null) {
+          note(player, pos, store, "save failed: drive " + dp[0] + " not mounted");
+          break;
+        }
+        if (!provider.write(normalized, p.source())) {
+          note(player, pos, store, "save failed: write error [" + normalized + "]");
+          break;
+        }
+        note(player, pos, store, "saved: " + p.name());
+        sendProgramList(player, store);
       }
       case ProgramActionC2S.LOAD -> {
-        String path = DiskContents.normalizePath(p.name());
-        String source = path == null ? null : store.readFile(path);
+        String source = store.readFile(p.name());
         if (source != null) {
           ServerPlayNetworking.send(player, new LoadProgramS2C(source));
         } else {
           note(player, pos, store, "no such file: " + p.name());
         }
       }
-      case ProgramActionC2S.LIST ->
-          note(player, pos, store, formatProgramTree(store.programNames()));
+      case ProgramActionC2S.LIST -> sendProgramList(player, store);
       case ProgramActionC2S.DELETE -> {
-        String path = DiskContents.normalizePath(p.name());
-        if (path == null || !store.deleteFile(path)) {
-          note(player, pos, store, "invalid path: " + p.name());
+        if (!store.deleteFile(p.name())) {
+          note(player, pos, store, "delete failed: " + p.name());
         } else {
-          note(player, pos, store, "deleted: " + path);
+          note(player, pos, store, "deleted: " + p.name());
+          sendProgramList(player, store);
+        }
+      }
+      case ProgramActionC2S.RENAME -> {
+        String source = store.readFile(p.name());
+        if (source == null) {
+          note(player, pos, store, "no such file: " + p.name());
+          break;
+        }
+        if (!store.saveFile(p.newName(), source)) {
+          note(player, pos, store, "rename failed (invalid destination): " + p.newName());
+          break;
+        }
+        store.deleteFile(p.name());
+        note(player, pos, store, "renamed: " + p.name() + " -> " + p.newName());
+        sendProgramList(player, store);
+      }
+      case ProgramActionC2S.MKDIR -> {
+        if (!store.mkdir(p.name())) {
+          note(player, pos, store, "mkdir failed: " + p.name());
+        } else {
           sendProgramList(player, store);
         }
       }
@@ -249,48 +289,6 @@ public final class MineSIerNet {
         player, new TerminalScreenS2C(pos, store.getTranscript() + "\n" + line, false));
   }
 
-  /**
-   * Renders program names as an indented folder tree, treating {@code /} in a name as a path
-   * separator (so {@code lib/crypto} and {@code net/router} group under their folders).
-   */
-  private static String formatProgramTree(Set<String> names) {
-    if (names.isEmpty()) {
-      return "programs: (none)";
-    }
-    DirNode root = new DirNode();
-    for (String name : names) {
-      DirNode node = root;
-      String[] parts = name.split("/");
-      for (int i = 0; i < parts.length - 1; i++) {
-        node = node.dirs.computeIfAbsent(parts[i], k -> new DirNode());
-      }
-      node.files.add(parts[parts.length - 1]);
-    }
-    StringBuilder sb = new StringBuilder("programs:");
-    renderTree(root, 1, sb);
-    return sb.toString();
-  }
-
-  private static void renderTree(DirNode node, int depth, StringBuilder sb) {
-    String indent = "  ".repeat(depth);
-    for (var entry : node.dirs.entrySet()) {
-      sb.append('\n').append(indent).append(entry.getKey()).append('/');
-      renderTree(entry.getValue(), depth + 1, sb);
-    }
-    for (String file : node.files) {
-      sb.append('\n').append(indent).append(file);
-    }
-  }
-
-  /**
-   * One level of the program folder tree: sub-folders (sorted) plus files (sorted) at this level.
-   */
-  private record DirNode(TreeMap<String, DirNode> dirs, TreeSet<String> files) {
-    DirNode() {
-      this(new TreeMap<>(), new TreeSet<>());
-    }
-  }
-
   private static void handleRun(ServerPlayer player, RunCommandC2S payload) {
     Level level = player.level();
     BlockPos pos = payload.pos();
@@ -311,6 +309,26 @@ public final class MineSIerNet {
       computer.runCommand(payload.command());
       ServerPlayNetworking.send(
           player, new TerminalScreenS2C(pos, computer.getTranscript(), false));
+      ServerPlayNetworking.send(
+          player, new ProcessStateS2C(computer.isRunning(), computer.getProcessName()));
     }
+  }
+
+  private static void handleStop(ServerPlayer player, StopProcessC2S payload) {
+    Level level = player.level();
+    BlockPos pos = payload.pos();
+    if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR) {
+      return;
+    }
+    if (!(level.getBlockEntity(pos) instanceof ComputerBlockEntity computer)) {
+      return;
+    }
+    if (!computer.ensureAccess(player)) {
+      return;
+    }
+    computer.stopResident();
+    ServerPlayNetworking.send(
+        player, new TerminalScreenS2C(pos, computer.getTranscript(), false));
+    ServerPlayNetworking.send(player, new ProcessStateS2C(false, ""));
   }
 }

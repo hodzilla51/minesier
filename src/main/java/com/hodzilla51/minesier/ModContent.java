@@ -13,6 +13,8 @@ import com.hodzilla51.minesier.block.WirelessModemBlock;
 import com.hodzilla51.minesier.block.WirelessModemBlockEntity;
 import com.hodzilla51.minesier.item.DiskContents;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
+import com.mojang.serialization.Codec;
+import net.minecraft.network.codec.ByteBufCodecs;
 import com.hodzilla51.minesier.menu.TurtleMenu;
 import com.hodzilla51.minesier.menu.TurtleMenuData;
 import java.util.function.Function;
@@ -89,7 +91,10 @@ public final class ModContent {
           new ExtendedMenuType<TurtleEquipmentMenu, TurtleMenuData>(
               TurtleEquipmentMenu::new, TurtleMenuData.STREAM_CODEC));
 
-  /** Data component carrying a disk's program files (travels with the disk item). */
+  /**
+   * Legacy data component (kept registered so old world data isn't corrupted on load). New code
+   * uses {@link #DISK_ID} instead.
+   */
   public static final DataComponentType<DiskContents> DISK_CONTENTS =
       Registry.register(
           BuiltInRegistries.DATA_COMPONENT_TYPE,
@@ -97,6 +102,19 @@ public final class ModContent {
           DataComponentType.<DiskContents>builder()
               .persistent(DiskContents.CODEC)
               .networkSynchronized(DiskContents.STREAM_CODEC)
+              .build());
+
+  /**
+   * UUID (as a string) that maps this disk item to its directory under
+   * {@code <world>/minesier/disks/<id>/}. Assigned lazily on first file operation.
+   */
+  public static final DataComponentType<String> DISK_ID =
+      Registry.register(
+          BuiltInRegistries.DATA_COMPONENT_TYPE,
+          Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "disk_id"),
+          DataComponentType.<String>builder()
+              .persistent(Codec.STRING)
+              .networkSynchronized(ByteBufCodecs.STRING_UTF8)
               .build());
 
   /** A floppy-style disk: portable storage for programs. */
@@ -141,11 +159,7 @@ public final class ModContent {
     return Registry.register(
         BuiltInRegistries.ITEM,
         id,
-        new Item(
-            new Item.Properties()
-                .setId(key)
-                .stacksTo(1)
-                .component(DISK_CONTENTS, DiskContents.EMPTY)));
+        new Item(new Item.Properties().setId(key).stacksTo(1)));
   }
 
   private static Item registerSimpleItem(String path, int maxStackSize) {

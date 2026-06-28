@@ -5,11 +5,15 @@ import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.js.JsComputer;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.turtle.TurtleNetworkState;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
@@ -34,6 +38,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 public class TurtleBlockEntity extends BlockEntity
     implements ProgramStore, AccessControlledBlockEntity {
   private static final String KEY_TRANSCRIPT = "Transcript";
+  private static final String KEY_DEVICE_ID = "DeviceId";
   private static final String KEY_FUEL = "Fuel";
   private static final String KEY_SELECTED = "SelectedSlot";
   private static final String KEY_DISK = "Disk";
@@ -59,6 +64,7 @@ public class TurtleBlockEntity extends BlockEntity
           "Disk files work here too: fs.read(path), fs.write(path, text).");
 
   private JsComputer vm = new JsComputer();
+  private String deviceId = "";
   private final List<String> transcript = new ArrayList<>(List.of(WELCOME));
   private int fuel = DEFAULT_FUEL;
   private NonNullList<ItemStack> inventory = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
@@ -195,6 +201,30 @@ public class TurtleBlockEntity extends BlockEntity
     setChanged();
   }
 
+  @Override
+  public String ensureDeviceId() {
+    if (deviceId.isEmpty()) {
+      deviceId = UUID.randomUUID().toString();
+      setChanged();
+    }
+    return deviceId;
+  }
+
+  /** Player-registered (JS) drive mounts; session-scoped (lost on reload). */
+  private final java.util.Map<String, com.hodzilla51.minesier.disk.FileSystemProvider>
+      dynamicMounts = new java.util.LinkedHashMap<>();
+
+  @Override
+  public java.util.Map<String, com.hodzilla51.minesier.disk.FileSystemProvider> dynamicMounts() {
+    return dynamicMounts;
+  }
+
+  @Override
+  public Path worldDirectory() {
+    if (!(level instanceof ServerLevel sl)) return null;
+    return sl.getServer().getWorldPath(LevelResource.ROOT);
+  }
+
   /** Lands a finished program's state onto this (the turtle's final-position) block entity. */
   public void applyResult(
       JsComputer vm,
@@ -236,6 +266,7 @@ public class TurtleBlockEntity extends BlockEntity
     this.inventory = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
     ContainerHelper.loadAllItems(in, this.inventory);
     this.disk = in.read(KEY_DISK, ItemStack.CODEC).orElse(ItemStack.EMPTY);
+    this.deviceId = in.getStringOr(KEY_DEVICE_ID, "");
     this.equipment = NonNullList.withSize(EQUIPMENT_SIZE, ItemStack.EMPTY);
     this.equipment.set(EQUIPMENT_FOOT, in.read(KEY_FOOT, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.equipment.set(EQUIPMENT_ARM, in.read(KEY_ARM, ItemStack.CODEC).orElse(ItemStack.EMPTY));
@@ -261,6 +292,9 @@ public class TurtleBlockEntity extends BlockEntity
     ContainerHelper.saveAllItems(out, inventory);
     if (!disk.isEmpty()) {
       out.store(KEY_DISK, ItemStack.CODEC, disk);
+    }
+    if (!deviceId.isEmpty()) {
+      out.putString(KEY_DEVICE_ID, deviceId);
     }
     storeEquipment(out, KEY_FOOT, equipment.get(EQUIPMENT_FOOT));
     storeEquipment(out, KEY_ARM, equipment.get(EQUIPMENT_ARM));

@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.client;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.AccessPromptS2C;
 import com.hodzilla51.minesier.net.LoadProgramS2C;
+import com.hodzilla51.minesier.net.ProcessStateS2C;
 import com.hodzilla51.minesier.net.ProgramListS2C;
 import com.hodzilla51.minesier.net.SwitchStatusS2C;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
@@ -103,6 +104,15 @@ public class MineSIerClient implements ClientModInitializer {
         ProgramListS2C.TYPE,
         (payload, context) ->
             context.client().execute(() -> ComputerScreen.showPrograms(payload.names())));
+
+    // Server notifies the client when a resident process starts or stops.
+    ClientPlayNetworking.registerGlobalReceiver(
+        ProcessStateS2C.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(
+                    () -> ComputerScreen.setProcessState(payload.running(), payload.processName())));
 
     ClientPlayNetworking.registerGlobalReceiver(
         AccessPromptS2C.TYPE,

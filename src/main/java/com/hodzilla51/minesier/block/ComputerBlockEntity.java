@@ -11,6 +11,7 @@ import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.NetworkManager;
 import com.hodzilla51.minesier.net.WirelessNetwork;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumMap;
@@ -21,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
@@ -41,6 +43,7 @@ public class ComputerBlockEntity extends BlockEntity
     implements ProgramStore, AccessControlledBlockEntity {
   private static final String KEY_TRANSCRIPT = "Transcript";
   private static final String KEY_DISK = "Disk";
+  private static final String KEY_DEVICE_ID = "DeviceId";
   private static final String KEY_ADDRESS = "NetworkAddress";
   private static final String KEY_REDSTONE_OUT = "RedstoneOut";
   private static final String KEY_RESIDENT = "ResidentSource";
@@ -67,6 +70,7 @@ public class ComputerBlockEntity extends BlockEntity
   private final int[] redstoneOutputs = new int[Direction.values().length];
 
   private ItemStack disk = ItemStack.EMPTY;
+  private String deviceId = "";
   private String networkAddress = formatAddress(UUID.randomUUID());
   private String accessMode = AccessControlledBlockEntity.MODE_UNCONFIGURED;
   private String passwordSalt = "";
@@ -235,10 +239,10 @@ public class ComputerBlockEntity extends BlockEntity
    * daemon just by slotting a prepared disk. Falls back to legacy {@code startup}.
    */
   public void bootStartup() {
-    String source = loadProgram("/startup.js");
-    if (source == null) {
-      source = loadProgram("startup");
-    }
+    // Check C: (local) first, then D: (disk), then legacy no-extension name.
+    String source = loadProgram("C:/startup.js");
+    if (source == null) source = loadProgram("D:/startup.js");
+    if (source == null) source = loadProgram("startup");
     if (source != null && !source.isBlank()) {
       runResident(source, "[startup]");
     }
@@ -293,6 +297,36 @@ public class ComputerBlockEntity extends BlockEntity
     return String.join("\n", transcript);
   }
 
+  /** True while this computer has a live resident process. */
+  public boolean isRunning() {
+    return computer.hasTimers();
+  }
+
+  /**
+   * A short human-readable name for the current process (first non-blank line of its source,
+   * capped at 40 chars), or an empty string when nothing is running.
+   */
+  public String getProcessName() {
+    if (!computer.hasTimers() || residentSource.isEmpty()) return "";
+    String line = residentSource.stripLeading();
+    int nl = line.indexOf('\n');
+    String first = nl >= 0 ? line.substring(0, nl).strip() : line.strip();
+    return first.length() > 40 ? first.substring(0, 40) + "…" : first;
+  }
+
+  /**
+   * Kills the resident process (clears all timers and receive callbacks). The transcript gets a
+   * "[stopped]" note and the block is marked dirty.
+   */
+  public void stopResident() {
+    if (!computer.hasTimers()) return;
+    computer.clearReceiveHandlers();
+    residentSource = "";
+    transcript.add("[stopped]");
+    trim();
+    setChanged();
+  }
+
   @Override
   public ItemStack getDisk() {
     return disk;
@@ -306,6 +340,30 @@ public class ComputerBlockEntity extends BlockEntity
   @Override
   public void markChanged() {
     setChanged();
+  }
+
+  @Override
+  public String ensureDeviceId() {
+    if (deviceId.isEmpty()) {
+      deviceId = UUID.randomUUID().toString();
+      setChanged();
+    }
+    return deviceId;
+  }
+
+  /** Player-registered (JS) drive mounts; session-scoped (lost on reload). */
+  private final java.util.Map<String, com.hodzilla51.minesier.disk.FileSystemProvider>
+      dynamicMounts = new java.util.LinkedHashMap<>();
+
+  @Override
+  public java.util.Map<String, com.hodzilla51.minesier.disk.FileSystemProvider> dynamicMounts() {
+    return dynamicMounts;
+  }
+
+  @Override
+  public Path worldDirectory() {
+    if (!(level instanceof ServerLevel sl)) return null;
+    return sl.getServer().getWorldPath(LevelResource.ROOT);
   }
 
   private void trim() {
@@ -323,6 +381,7 @@ public class ComputerBlockEntity extends BlockEntity
       transcript.add(line);
     }
     this.disk = in.read(KEY_DISK, ItemStack.CODEC).orElse(ItemStack.EMPTY);
+    this.deviceId = in.getStringOr(KEY_DEVICE_ID, "");
     this.networkAddress = in.getStringOr(KEY_ADDRESS, networkAddress);
     in.getIntArray(KEY_REDSTONE_OUT)
         .ifPresent(
@@ -351,6 +410,9 @@ public class ComputerBlockEntity extends BlockEntity
     out.putString(KEY_TRANSCRIPT, getTranscript());
     if (!disk.isEmpty()) {
       out.store(KEY_DISK, ItemStack.CODEC, disk);
+    }
+    if (!deviceId.isEmpty()) {
+      out.putString(KEY_DEVICE_ID, deviceId);
     }
     out.putString(KEY_ADDRESS, networkAddress);
     out.putIntArray(KEY_REDSTONE_OUT, redstoneOutputs.clone());
@@ -575,6 +637,25 @@ public class ComputerBlockEntity extends BlockEntity
     @Override
     public boolean exists(String path) {
       return fileExists(path);
+    }
+
+    @Override
+    public boolean mount(String drive, com.hodzilla51.minesier.disk.FileSystemProvider provider) {
+      String letter = ProgramStore.canonicalDrive(drive);
+      if (letter == null || provider == null) return false;
+      dynamicMounts().put(letter, provider);
+      return true;
+    }
+
+    @Override
+    public boolean unmount(String drive) {
+      String letter = ProgramStore.canonicalDrive(drive);
+      return letter != null && dynamicMounts().remove(letter) != null;
+    }
+
+    @Override
+    public java.util.List<String> mounts() {
+      return new java.util.ArrayList<>(ComputerBlockEntity.this.mounts().keySet());
     }
   }
 

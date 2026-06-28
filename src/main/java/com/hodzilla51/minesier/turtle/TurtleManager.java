@@ -94,6 +94,26 @@ public final class TurtleManager {
           public boolean exists(String path) {
             return be.fileExists(path);
           }
+
+          @Override
+          public boolean mount(
+              String drive, com.hodzilla51.minesier.disk.FileSystemProvider provider) {
+            String letter = com.hodzilla51.minesier.block.ProgramStore.canonicalDrive(drive);
+            if (letter == null || provider == null) return false;
+            be.dynamicMounts().put(letter, provider);
+            return true;
+          }
+
+          @Override
+          public boolean unmount(String drive) {
+            String letter = com.hodzilla51.minesier.block.ProgramStore.canonicalDrive(drive);
+            return letter != null && be.dynamicMounts().remove(letter) != null;
+          }
+
+          @Override
+          public List<String> mounts() {
+            return new java.util.ArrayList<>(be.mounts().keySet());
+          }
         });
     TurtleAccess world =
         new TurtleAccess(

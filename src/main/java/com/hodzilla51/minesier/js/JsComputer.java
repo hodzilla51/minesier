@@ -1,6 +1,7 @@
 package com.hodzilla51.minesier.js;
 
 import com.hodzilla51.minesier.MineSIerConfig;
+import com.hodzilla51.minesier.disk.FileSystemProvider;
 import com.hodzilla51.minesier.net.IpPacket;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import java.util.ArrayList;
@@ -195,6 +196,42 @@ public final class JsComputer {
     return out;
   }
 
+  /**
+   * Invokes a JS provider callback (from {@code fs.mount}) and returns its raw result.
+   *
+   * <p>When called from inside a running script (nested {@code fs.read("N:/x")}), it reuses the
+   * live context and the program's existing instruction budget — so a program can't reset its own
+   * runaway limit by hammering a mounted drive. When called from a non-script thread (the terminal
+   * UI or a network event touching an {@code N:} file), it enters a fresh, separately-budgeted
+   * context. Returns {@code null} on any error.
+   */
+  synchronized Object invokeProvider(Function fn, Object[] args) {
+    if (fn == null) return null;
+    Context current = Context.getCurrentContext();
+    if (current != null) {
+      try {
+        return fn.call(current, scope, scope, args);
+      } catch (RhinoException | IllegalStateException e) {
+        return null;
+      }
+    }
+    SafeContextFactory.resetCounter(MineSIerConfig.maxCallbackInstructions);
+    Context cx = Context.enter();
+    try {
+      cx.setInterpretedMode(true);
+      try {
+        cx.setClassShutter(DENY_ALL);
+      } catch (SecurityException alreadySet) {
+        // Shutter already installed on this (reused) context — fine.
+      }
+      return fn.call(cx, scope, scope, args);
+    } catch (RhinoException | IllegalStateException e) {
+      return null;
+    } finally {
+      Context.exit();
+    }
+  }
+
   private Object receiveFrameObject(Context cx, Scriptable scope, NetworkFrame frame) {
     ScriptableObject object = (ScriptableObject) cx.newObject(scope);
     ScriptableObject.putProperty(object, "source", frame.source());
@@ -299,7 +336,10 @@ public final class JsComputer {
         }
         if (fileSystem != null) {
           ScriptableObject fsObj = (ScriptableObject) cx.newObject(scope);
-          for (String op : new String[] {"list", "read", "write", "remove", "exists"}) {
+          for (String op :
+              new String[] {
+                "list", "read", "write", "remove", "exists", "mount", "unmount", "mounts"
+              }) {
             ScriptableObject.putProperty(fsObj, op, new FileSystemFunction(op));
           }
           ScriptableObject.putProperty(scope, "fs", fsObj);
@@ -519,11 +559,29 @@ public final class JsComputer {
       FileSystemApi fs = fileSystem;
       if (fs == null) {
         return switch (op) {
-          case "list" -> cx.newArray(scope, new Object[0]);
-          case "exists" -> Boolean.FALSE;
-          case "write", "remove" -> Boolean.FALSE;
+          case "list", "mounts" -> cx.newArray(scope, new Object[0]);
+          case "exists", "write", "remove", "mount", "unmount" -> Boolean.FALSE;
           default -> null;
         };
+      }
+      // Mount management operates on drive names / JS objects, not file paths.
+      switch (op) {
+        case "mount" -> {
+          String drive = args.length > 0 ? Context.toString(args[0]) : "";
+          if (args.length < 2 || !(args[1] instanceof Scriptable provider)) {
+            return Boolean.FALSE;
+          }
+          return fs.mount(drive, new JsFileSystemProvider(provider));
+        }
+        case "unmount" -> {
+          return fs.unmount(args.length > 0 ? Context.toString(args[0]) : "");
+        }
+        case "mounts" -> {
+          return cx.newArray(scope, fs.mounts().toArray(Object[]::new));
+        }
+        default -> {
+          // fall through to path-based ops below
+        }
       }
       String path = args.length > 0 ? Context.toString(args[0]) : "/";
       return switch (op) {
@@ -538,6 +596,95 @@ public final class JsComputer {
         case "exists" -> fs.exists(path);
         default -> null;
       };
+    }
+  }
+
+  /**
+   * A {@link FileSystemProvider} backed by a JavaScript object passed to {@code fs.mount}. The
+   * object supplies {@code read(path)}, {@code write(path,data)} and {@code list(path)}; optional
+   * {@code delete}, {@code exists}, {@code mkdir} and {@code listAll} refine behavior. Every call is
+   * dispatched back into the owning VM via {@link #invokeProvider} under the sandbox + budget.
+   */
+  private final class JsFileSystemProvider implements FileSystemProvider {
+    private final Function read;
+    private final Function write;
+    private final Function list;
+    private final Function delete;
+    private final Function exists;
+    private final Function mkdir;
+    private final Function listAll;
+
+    JsFileSystemProvider(Scriptable obj) {
+      this.read = fn(obj, "read");
+      this.write = fn(obj, "write");
+      this.list = fn(obj, "list");
+      this.delete = fn(obj, "delete");
+      this.exists = fn(obj, "exists");
+      this.mkdir = fn(obj, "mkdir");
+      this.listAll = fn(obj, "listAll");
+    }
+
+    private static Function fn(Scriptable obj, String name) {
+      Object v = ScriptableObject.getProperty(obj, name);
+      return v instanceof Function f ? f : null;
+    }
+
+    @Override
+    public String read(String path) {
+      Object r = invokeProvider(read, new Object[] {path});
+      return (r == null || Undefined.isUndefined(r)) ? null : Context.toString(r);
+    }
+
+    @Override
+    public boolean write(String path, String text) {
+      return Context.toBoolean(invokeProvider(write, new Object[] {path, text}));
+    }
+
+    @Override
+    public boolean delete(String path) {
+      return delete != null && Context.toBoolean(invokeProvider(delete, new Object[] {path}));
+    }
+
+    @Override
+    public boolean exists(String path) {
+      if (exists != null) {
+        return Context.toBoolean(invokeProvider(exists, new Object[] {path}));
+      }
+      return read(path) != null;
+    }
+
+    @Override
+    public boolean mkdir(String path) {
+      return mkdir != null && Context.toBoolean(invokeProvider(mkdir, new Object[] {path}));
+    }
+
+    @Override
+    public java.util.Set<String> listAll() {
+      Object r = invokeProvider(listAll != null ? listAll : list, new Object[] {""});
+      return new java.util.TreeSet<>(toStringList(r));
+    }
+
+    @Override
+    public List<String> listDir(String path) {
+      return toStringList(invokeProvider(list, new Object[] {path}));
+    }
+
+    /** Converts a JS array (or array-like) of strings to a Java list; empty on anything else. */
+    private List<String> toStringList(Object value) {
+      List<String> out = new ArrayList<>();
+      if (value instanceof Scriptable arr) {
+        Object len = ScriptableObject.getProperty(arr, "length");
+        if (len instanceof Number n) {
+          int count = n.intValue();
+          for (int i = 0; i < count; i++) {
+            Object item = ScriptableObject.getProperty(arr, i);
+            if (item != null && !Undefined.isUndefined(item)) {
+              out.add(Context.toString(item));
+            }
+          }
+        }
+      }
+      return out;
     }
   }
 

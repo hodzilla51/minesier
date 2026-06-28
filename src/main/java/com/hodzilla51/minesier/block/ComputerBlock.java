@@ -118,6 +118,10 @@ public class ComputerBlock extends BaseEntityBlock {
       ServerPlayNetworking.send(
           serverPlayer, new TerminalScreenS2C(pos, computer.getTranscript(), true));
       MineSIerNet.sendProgramList(serverPlayer, computer);
+      ServerPlayNetworking.send(
+          serverPlayer,
+          new com.hodzilla51.minesier.net.ProcessStateS2C(
+              computer.isRunning(), computer.getProcessName()));
     }
     return InteractionResult.SUCCESS;
   }
