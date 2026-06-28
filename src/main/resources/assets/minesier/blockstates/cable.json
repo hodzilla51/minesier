@@ -1,5 +1,11 @@
 {
-  "variants": {
-    "": { "model": "minesier:block/cable" }
-  }
+  "multipart": [
+    { "apply": { "model": "minesier:block/cable_core" } },
+    { "when": { "south": "true" }, "apply": { "model": "minesier:block/cable_arm", "uvlock": true } },
+    { "when": { "north": "true" }, "apply": { "model": "minesier:block/cable_arm", "y": 180, "uvlock": true } },
+    { "when": { "west": "true" }, "apply": { "model": "minesier:block/cable_arm", "y": 90, "uvlock": true } },
+    { "when": { "east": "true" }, "apply": { "model": "minesier:block/cable_arm", "y": 270, "uvlock": true } },
+    { "when": { "down": "true" }, "apply": { "model": "minesier:block/cable_arm", "x": 90, "uvlock": true } },
+    { "when": { "up": "true" }, "apply": { "model": "minesier:block/cable_arm", "x": 270, "uvlock": true } }
+  ]
 }
