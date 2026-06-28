@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.client;
 
+import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.block.TurtleBlock;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.net.TurtleVisualAction;
@@ -15,8 +16,8 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.client.renderer.item.ItemModelResolver;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -27,8 +28,6 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.Shapes;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * Draws the turtle (the block itself is INVISIBLE) so it can slide smoothly between cells during a
@@ -42,18 +41,11 @@ public class TurtleBlockEntityRenderer
   private static final float BASE_WIDTH = 0.72f;
   private static final float BASE_HEIGHT = 0.68f;
   private static final float BASE_DEPTH = 0.72f;
-  private static final float SCREEN_Z = BASE_DEPTH / 2f + 0.002f;
+  // The block model's screen face sits 1px (1/16) behind the bezel front; pull the text in to match
+  // so it lands on the recessed display instead of floating a pixel proud of it.
+  private static final float SCREEN_RECESS = (1f / 16f) * BASE_DEPTH;
+  private static final float SCREEN_Z = BASE_DEPTH / 2f - SCREEN_RECESS + 0.002f;
   private static final int FULL_BRIGHT = 0xF000F0;
-  private static final int FOOT_COLOR = 0xFF66D9EF;
-  private static final int ARM_COLOR = 0xFFFFD166;
-  private static final int TOP_COLOR = 0xFFB48CFF;
-  private static final VoxelShape FOOT_SHAPE =
-      Shapes.or(
-          Shapes.box(0.08, 0.02, 0.16, 0.22, 0.18, 0.84),
-          Shapes.box(0.78, 0.02, 0.16, 0.92, 0.18, 0.84));
-  private static final VoxelShape ARM_SHAPE = Shapes.box(0.82, 0.32, 0.28, 0.98, 0.56, 0.72);
-  private static final VoxelShape TOP_SHAPE = Shapes.box(0.32, 0.84, 0.32, 0.68, 1.12, 0.68);
-
   private final Font font;
   private final ItemModelResolver itemModelResolver;
 
@@ -93,11 +85,9 @@ public class TurtleBlockEntityRenderer
     state.pickupItem.clear();
     state.showPickupItem = false;
     state.footItem.clear();
+    state.footItemUsesTurtleSpace = false;
     state.armItem.clear();
     state.topItem.clear();
-    state.hasFootEquipment = !be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_FOOT).isEmpty();
-    state.hasArmEquipment = !be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_ARM).isEmpty();
-    state.hasTopEquipment = !be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_TOP).isEmpty();
     configureEquipmentItems(state, be, level);
 
     TurtleAnimations.Slide slide = TurtleAnimations.get(pos);
@@ -152,7 +142,6 @@ public class TurtleBlockEntityRenderer
       poseStack.rotateAround(Axis.ZP.rotationDegrees(state.tiltZDeg), 0.5f, 0.5f, 0.5f);
     }
     submitBase(state, poseStack, collector);
-    submitEquipmentShapes(state, poseStack, collector);
     submitEquipment(state, poseStack, collector);
     submitScreen(state, poseStack, collector);
     poseStack.popPose();
@@ -254,30 +243,37 @@ public class TurtleBlockEntityRenderer
     if (state.showPickupItem) {
       poseStack.pushPose();
       poseStack.scale(0.45f, 0.45f, 0.45f);
-      state.pickupItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      state.pickupItem.submit(poseStack, collector, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0);
       poseStack.popPose();
     }
     poseStack.popPose();
   }
 
   private void configureEquipmentItems(TurtleRenderState state, TurtleBlockEntity be, Level level) {
+    ItemStack footStack = be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_FOOT);
+    state.footItemUsesTurtleSpace = isMineSIerFootPart(footStack);
+    configureEquipmentItem(state.footItem, footStack, level, ItemDisplayContext.FIXED);
     configureEquipmentItem(
-        state.footItem, be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_FOOT), level);
+        state.armItem,
+        be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_ARM),
+        level,
+        ItemDisplayContext.FIXED);
     configureEquipmentItem(
-        state.armItem, be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_ARM), level);
-    configureEquipmentItem(
-        state.topItem, be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_TOP), level);
+        state.topItem,
+        be.getEquipment().get(TurtleBlockEntity.EQUIPMENT_TOP),
+        level,
+        ItemDisplayContext.FIXED);
   }
 
   private void configureEquipmentItem(
       net.minecraft.client.renderer.item.ItemStackRenderState renderState,
       ItemStack stack,
-      Level level) {
+      Level level,
+      ItemDisplayContext displayContext) {
     if (stack.isEmpty()) {
       return;
     }
-    itemModelResolver.updateForTopItem(
-        renderState, stack, ItemDisplayContext.FIXED, level, null, 0);
+    itemModelResolver.updateForTopItem(renderState, stack, displayContext, level, null, 0);
   }
 
   private void submitEquipment(
@@ -288,9 +284,14 @@ public class TurtleBlockEntityRenderer
 
     if (!state.footItem.isEmpty()) {
       poseStack.pushPose();
-      poseStack.translate(0.0, -0.42, -0.18);
-      poseStack.scale(0.24f, 0.24f, 0.24f);
-      state.footItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      if (state.footItemUsesTurtleSpace) {
+        poseStack.scale(BASE_WIDTH, BASE_HEIGHT, BASE_DEPTH);
+        poseStack.translate(-0.5, -0.5, -0.5);
+      } else {
+        poseStack.translate(0.0, -0.42, -0.18);
+        poseStack.scale(0.24f, 0.24f, 0.24f);
+      }
+      state.footItem.submit(poseStack, collector, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0);
       poseStack.popPose();
     }
 
@@ -299,7 +300,7 @@ public class TurtleBlockEntityRenderer
       poseStack.translate(0.39, -0.03, 0.25);
       poseStack.mulPose(Axis.ZP.rotationDegrees(-35f));
       poseStack.scale(0.24f, 0.24f, 0.24f);
-      state.armItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      state.armItem.submit(poseStack, collector, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0);
       poseStack.popPose();
     }
 
@@ -308,34 +309,17 @@ public class TurtleBlockEntityRenderer
       poseStack.translate(0.0, 0.56, 0.0);
       poseStack.mulPose(Axis.XP.rotationDegrees(90f));
       poseStack.scale(0.30f, 0.30f, 0.30f);
-      state.topItem.submit(poseStack, collector, FULL_BRIGHT, 0, 0);
+      state.topItem.submit(poseStack, collector, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0);
       poseStack.popPose();
     }
 
     poseStack.popPose();
   }
 
-  private void submitEquipmentShapes(
-      TurtleRenderState state, PoseStack poseStack, SubmitNodeCollector collector) {
-    poseStack.pushPose();
-    poseStack.translate(0.5, 0.5, 0.5);
-    poseStack.mulPose(Axis.YP.rotationDegrees(-state.facing.toYRot()));
-    poseStack.translate(-0.5, -0.5, -0.5);
-
-    if (state.hasFootEquipment) {
-      collector.submitShapeOutline(
-          poseStack, FOOT_SHAPE, RenderTypes.lines(), FOOT_COLOR, 3.0f, false);
-    }
-    if (state.hasArmEquipment) {
-      collector.submitShapeOutline(
-          poseStack, ARM_SHAPE, RenderTypes.lines(), ARM_COLOR, 3.0f, false);
-    }
-    if (state.hasTopEquipment) {
-      collector.submitShapeOutline(
-          poseStack, TOP_SHAPE, RenderTypes.lines(), TOP_COLOR, 3.0f, false);
-    }
-
-    poseStack.popPose();
+  private static boolean isMineSIerFootPart(ItemStack stack) {
+    return stack.is(ModContent.WHEEL_FOOT_PART)
+        || stack.is(ModContent.CRAWLER_FOOT_PART)
+        || stack.is(ModContent.HOVER_FOOT_PART);
   }
 
   private void configurePickupItem(TurtleRenderState state, Level level, String itemId) {

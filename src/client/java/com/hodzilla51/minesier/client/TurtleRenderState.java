@@ -40,13 +40,9 @@ public class TurtleRenderState extends BlockEntityRenderState {
   /** Simple equipped-part placeholders rendered on the turtle body. */
   public final ItemStackRenderState footItem = new ItemStackRenderState();
 
+  public boolean footItemUsesTurtleSpace;
+
   public final ItemStackRenderState armItem = new ItemStackRenderState();
 
   public final ItemStackRenderState topItem = new ItemStackRenderState();
-
-  public boolean hasFootEquipment;
-
-  public boolean hasArmEquipment;
-
-  public boolean hasTopEquipment;
 }
