@@ -7,10 +7,10 @@ import com.hodzilla51.minesier.js.MonitorApi;
 import com.hodzilla51.minesier.js.NetworkApi;
 import com.hodzilla51.minesier.js.RedstoneApi;
 import com.hodzilla51.minesier.net.CableNetwork;
+import com.hodzilla51.minesier.net.MineSIerNet;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.NetworkManager;
-import com.hodzilla51.minesier.net.MineSIerNet;
 import com.hodzilla51.minesier.net.SendResult;
 import com.hodzilla51.minesier.net.WirelessNetwork;
 import java.nio.file.Path;
@@ -224,7 +224,8 @@ public class ComputerBlockEntity extends BlockEntity
    * Runs one program in this computer's VM, appending the echoed input + output to the transcript.
    */
   public void runCommand(String command) {
-    computer.clearReceiveHandlers();
+    computer.stopAllHandles();
+    computer.resetForTopLevelRun();
     String[] inputLines = command.split("\n", -1);
     transcript.add("> " + inputLines[0]);
     for (int i = 1; i < inputLines.length; i++) {
@@ -252,7 +253,10 @@ public class ComputerBlockEntity extends BlockEntity
 
   /** Re-runs {@code source} to rebuild a resident daemon (on load, or as a disk startup). */
   private void runResident(String source, String note) {
-    computer.clearReceiveHandlers();
+    // Disk hot-swap can reach this on an already-running VM; stop old handles so timers (which are
+    // additive, not overwritten like listeners) don't accumulate. A fresh post-reload VM no-ops.
+    computer.stopAllHandles();
+    computer.resetForTopLevelRun();
     transcript.add(note);
     transcript.addAll(computer.run(source));
     markResident(source);
@@ -264,7 +268,7 @@ public class ComputerBlockEntity extends BlockEntity
    * Records (or clears) the program that owns the live daemon, with a one-line hint when running.
    */
   private void markResident(String source) {
-    if (computer.hasTimers()) {
+    if (computer.isResident()) {
       residentSource = source;
       transcript.add("[running in background — clearTimers() to stop]");
     } else {
@@ -283,8 +287,8 @@ public class ComputerBlockEntity extends BlockEntity
         runResident(residentSource, "[resident program restarted]");
       }
     }
-    if (computer.hasTimers()) {
-      List<String> out = computer.tickTimers();
+    if (computer.hasTickDrivenWork()) {
+      List<String> out = computer.drainDueTimers();
       if (!out.isEmpty()) {
         transcript.addAll(out);
         trim();
@@ -301,7 +305,7 @@ public class ComputerBlockEntity extends BlockEntity
 
   /** True while this computer has a live resident process. */
   public boolean isRunning() {
-    return computer.hasTimers();
+    return computer.isResident();
   }
 
   /**
@@ -309,7 +313,7 @@ public class ComputerBlockEntity extends BlockEntity
    * at 40 chars), or an empty string when nothing is running.
    */
   public String getProcessName() {
-    if (!computer.hasTimers() || residentSource.isEmpty()) return "";
+    if (!computer.isResident() || residentSource.isEmpty()) return "";
     String line = residentSource.stripLeading();
     int nl = line.indexOf('\n');
     String first = nl >= 0 ? line.substring(0, nl).strip() : line.strip();
@@ -321,8 +325,8 @@ public class ComputerBlockEntity extends BlockEntity
    * "[stopped]" note and the block is marked dirty.
    */
   public void stopResident() {
-    if (!computer.hasTimers()) return;
-    computer.clearReceiveHandlers();
+    if (!computer.isAlive()) return;
+    computer.stopAllHandles();
     residentSource = "";
     transcript.add("[stopped]");
     trim();
@@ -527,21 +531,15 @@ public class ComputerBlockEntity extends BlockEntity
     }
 
     @Override
-    public boolean clearReceiveListener(String interfaceName) {
+    public boolean clearReceiveListener(String interfaceName, NetworkListener expected) {
       Direction face = parseFace(interfaceName);
       NicState nic = face == null ? null : nics.get(face);
-      if (nic == null) {
+      // Lock-free compare-and-clear on the volatile slot: only clear if still the current listener.
+      if (nic == null || nic.listener != expected) {
         return false;
       }
       nic.listener = null;
       return true;
-    }
-
-    @Override
-    public void clearReceiveListeners() {
-      for (NicState nic : nics.values()) {
-        nic.listener = null;
-      }
     }
 
     @Override
@@ -646,8 +644,7 @@ public class ComputerBlockEntity extends BlockEntity
       String letter = ProgramStore.canonicalDrive(drive);
       if (letter == null || provider == null) return false;
       dynamicMounts().put(letter, provider);
-      MineSIerNet.refreshProgramListForViewers(
-          ComputerBlockEntity.this, ComputerBlockEntity.this);
+      MineSIerNet.refreshProgramListForViewers(ComputerBlockEntity.this, ComputerBlockEntity.this);
       return true;
     }
 
@@ -655,8 +652,7 @@ public class ComputerBlockEntity extends BlockEntity
     public boolean unmount(String drive) {
       String letter = ProgramStore.canonicalDrive(drive);
       if (letter == null || dynamicMounts().remove(letter) == null) return false;
-      MineSIerNet.refreshProgramListForViewers(
-          ComputerBlockEntity.this, ComputerBlockEntity.this);
+      MineSIerNet.refreshProgramListForViewers(ComputerBlockEntity.this, ComputerBlockEntity.this);
       return true;
     }
 
@@ -741,7 +737,7 @@ public class ComputerBlockEntity extends BlockEntity
 
   @Override
   public void setRemoved() {
-    computer.clearReceiveHandlers();
+    computer.stopAllHandles();
     super.setRemoved();
   }
 }

@@ -4,6 +4,7 @@ import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.disk.FileSystemProvider;
 import com.hodzilla51.minesier.net.IpPacket;
 import com.hodzilla51.minesier.net.NetworkFrame;
+import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.SendResult;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,11 +66,12 @@ public final class JsComputer {
   private FileSystemApi fileSystem;
 
   /**
-   * Background timers registered via {@code every}/{@code after}. Ticked once per server tick by
-   * the owning block entity, so a program keeps working after its terminal closes (a resident
-   * daemon).
+   * The set of live wake/liveness sources owned by this VM: {@code every}/{@code after} timers and
+   * {@code net.onReceive} listeners. Liveness is asked as a predicate over these handles, so a
+   * program keeps working after its terminal closes (a resident daemon) as long as any handle is
+   * live.
    */
-  private final List<Timer> timers = new ArrayList<>();
+  private final LivenessRegistry registry = new LivenessRegistry();
 
   /** Resolves a {@code require(name)} to another program's source (from the disk), or null. */
   private java.util.function.Function<String, String> moduleLoader;
@@ -113,48 +115,118 @@ public final class JsComputer {
   }
 
   /**
-   * Stops all background work owned by this VM: network receive callbacks and timers. Called before
-   * a new terminal program runs, and when the owner is removed.
+   * Disposes every live handle owned by this VM — timers and network receive listeners — folding
+   * any running daemon. Called when stopping a resident program and when the owner is removed.
+   * Deliberately does <em>not</em> touch the module graph (see {@link #resetForTopLevelRun()}).
    */
-  public synchronized void clearReceiveHandlers() {
-    if (network != null) {
-      network.clearReceiveListeners();
-    }
-    timers.clear();
-    // Fresh module graph per top-level run, so edited library files reload.
+  public synchronized void stopAllHandles() {
+    registry.stopAllHandles();
+  }
+
+  /**
+   * Refreshes the CommonJS module graph for a new top-level program, so edited library files
+   * reload. Separate from {@link #stopAllHandles()} so stopping a daemon doesn't disturb modules,
+   * and a top-level run does both.
+   */
+  public synchronized void resetForTopLevelRun() {
     moduleCache.clear();
   }
 
-  /** True while this VM has live timers (so its block entity keeps getting ticked). */
-  public synchronized boolean hasTimers() {
-    return !timers.isEmpty();
+  /** True when any handle is live — a resident daemon OR a busy foreground runner. */
+  public synchronized boolean isAlive() {
+    return registry.isAlive();
+  }
+
+  /** True when a resident-source handle (timer or listener) keeps this VM running in background. */
+  public synchronized boolean isResident() {
+    return registry.isResident();
+  }
+
+  /** True when a live timer exists, so the owner's per-tick drain is worth running. */
+  public synchronized boolean hasTickDrivenWork() {
+    return registry.hasTickDrivenWork();
   }
 
   /**
    * Server tick: fires every timer whose countdown has elapsed, re-arming repeating ones and
    * dropping one-shots. Returns whatever the callbacks printed (for the transcript).
    */
-  public synchronized List<String> tickTimers() {
-    if (timers.isEmpty()) {
+  public synchronized List<String> drainDueTimers() {
+    // Snapshot (outside the registry lock) so a callback that registers a new timer doesn't fire it
+    // this same tick.
+    List<LivenessRegistry.RuntimeHandle> snapshot = registry.snapshot(LivenessRegistry.Kind.TIMER);
+    if (snapshot.isEmpty()) {
       return List.of();
     }
-    List<String> out = new ArrayList<>();
-    // Snapshot so a callback that registers a new timer doesn't fire it this same tick.
-    List<Timer> due = new ArrayList<>();
-    for (Timer timer : new ArrayList<>(timers)) {
-      if (--timer.remaining <= 0) {
+    List<TimerHandle> due = new ArrayList<>();
+    for (LivenessRegistry.RuntimeHandle handle : snapshot) {
+      TimerHandle timer = (TimerHandle) handle;
+      if (timer.tickDown()) {
         due.add(timer);
       }
     }
-    for (Timer timer : due) {
-      out.addAll(invokeBounded(timer.fn, null));
-      if (timer.once) {
-        timers.remove(timer);
-      } else {
-        timer.remaining = timer.interval;
+    List<String> out = new ArrayList<>();
+    for (TimerHandle timer : due) {
+      try {
+        out.addAll(invokeBounded(timer.fn, null));
+      } finally {
+        // Unref one-shots AFTER the callback. A callback that arms a new handle keeps the ref count
+        // above zero, so the VM never momentarily reads as idle mid-drain.
+        if (timer.once) {
+          registry.remove(timer);
+        } else {
+          timer.rearm();
+        }
       }
     }
     return out;
+  }
+
+  /** Disposes only the timer handles (the {@code clearTimers()} script global). */
+  synchronized void clearAllTimers() {
+    for (LivenessRegistry.RuntimeHandle handle : registry.snapshot(LivenessRegistry.Kind.TIMER)) {
+      registry.remove(handle);
+      handle.dispose();
+    }
+  }
+
+  /**
+   * Registers a {@code net.onReceive} listener for one interface. Replaces any existing listener on
+   * that interface atomically: the old handle is removed + disposed before the new one is added, so
+   * the registry never holds a dead listener handle.
+   */
+  private synchronized boolean registerReceiveListener(String interfaceName, Function callback) {
+    NetworkApi net = network;
+    if (net == null) {
+      return false;
+    }
+    disposeReceiveHandles(interfaceName);
+    NetworkListener listener = frame -> invokeReceiveHandler(callback, frame);
+    if (!net.setReceiveListener(interfaceName, listener)) {
+      return false;
+    }
+    registry.add(new ReceiveHandle(net, interfaceName, listener));
+    return true;
+  }
+
+  /** The {@code net.offReceive} path: removes + disposes the listener handle for one interface. */
+  private synchronized boolean unregisterReceiveListener(String interfaceName) {
+    return disposeReceiveHandles(interfaceName);
+  }
+
+  /** Removes + disposes every listener handle bound to {@code interfaceName}. */
+  private boolean disposeReceiveHandles(String interfaceName) {
+    boolean removed = false;
+    for (LivenessRegistry.RuntimeHandle handle :
+        registry.snapshot(LivenessRegistry.Kind.LISTENER)) {
+      ReceiveHandle receive = (ReceiveHandle) handle;
+      if (receive.interfaceName.equals(interfaceName)) {
+        registry.remove(receive);
+        receive.dispose();
+        removed = true;
+      }
+    }
+    return removed;
   }
 
   /** Invokes one registered receive callback within a small, tick-safe instruction budget. */
@@ -801,10 +873,9 @@ public final class JsComputer {
                 : Boolean.FALSE;
         case "onReceive" ->
             args.length >= 1 && args[0] instanceof Function callback
-                ? net.setReceiveListener(
-                    interfaceName, frame -> invokeReceiveHandler(callback, frame))
+                ? registerReceiveListener(interfaceName, callback)
                 : Boolean.FALSE;
-        case "offReceive" -> net.clearReceiveListener(interfaceName);
+        case "offReceive" -> unregisterReceiveListener(interfaceName);
         default -> null;
       };
     }
@@ -933,18 +1004,67 @@ public final class JsComputer {
 
   /**
    * A scheduled background callback. {@code remaining} counts down server ticks to the next fire.
+   * Its presence in the registry is what makes the VM tick-driven and resident; disposal is just
+   * removal (no external state to release).
    */
-  private static final class Timer {
+  private static final class TimerHandle implements LivenessRegistry.RuntimeHandle {
     final int interval;
     final Function fn;
     final boolean once;
     int remaining;
 
-    Timer(int interval, Function fn, boolean once) {
+    TimerHandle(int interval, Function fn, boolean once) {
       this.interval = interval;
       this.fn = fn;
       this.once = once;
       this.remaining = interval;
+    }
+
+    /** Decrements the countdown; true when it elapses this tick. */
+    boolean tickDown() {
+      return --remaining <= 0;
+    }
+
+    void rearm() {
+      remaining = interval;
+    }
+
+    @Override
+    public LivenessRegistry.Kind kind() {
+      return LivenessRegistry.Kind.TIMER;
+    }
+
+    @Override
+    public void dispose() {
+      // No external resource: removal from the registry is the whole disposal.
+    }
+  }
+
+  /**
+   * A live {@code net.onReceive} listener. Holds the exact {@link NetworkListener} installed on the
+   * NIC, so disposal is an identity-keyed compare-and-clear: it only clears the NIC slot if this
+   * listener is still the current one, never clobbering a listener that replaced it.
+   */
+  private static final class ReceiveHandle implements LivenessRegistry.RuntimeHandle {
+    final NetworkApi network;
+    final String interfaceName;
+    final NetworkListener listener;
+
+    ReceiveHandle(NetworkApi network, String interfaceName, NetworkListener listener) {
+      this.network = network;
+      this.interfaceName = interfaceName;
+      this.listener = listener;
+    }
+
+    @Override
+    public LivenessRegistry.Kind kind() {
+      return LivenessRegistry.Kind.LISTENER;
+    }
+
+    @Override
+    public void dispose() {
+      // Identity-keyed: clears the NIC slot only if this listener is still the current one.
+      network.clearReceiveListener(interfaceName, listener);
     }
   }
 
@@ -965,9 +1085,7 @@ public final class JsComputer {
         return Boolean.FALSE;
       }
       int interval = Math.max(1, (int) Context.toNumber(args[0]));
-      synchronized (JsComputer.this) {
-        timers.add(new Timer(interval, fn, once));
-      }
+      registry.add(new TimerHandle(interval, fn, once));
       return Boolean.TRUE;
     }
   }
@@ -976,9 +1094,7 @@ public final class JsComputer {
   private final class ClearTimersFunction extends BaseFunction {
     @Override
     public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-      synchronized (JsComputer.this) {
-        timers.clear();
-      }
+      clearAllTimers();
       return Undefined.instance;
     }
   }
