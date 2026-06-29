@@ -363,10 +363,12 @@ Requirements: **JDK 25**, Fabric (Loader + API for MC 26.2).
 - ✅ Redstone I/O (read/drive signals on any face from a program)
 - ✅ Monitors (in-world text display driven from code)
 - ✅ Resident execution (timers that survive terminal close and world reload, plus startup disks)
-- ✅ Turtle equipment foundation (foot movement profiles, arm tools, top modules)
-- ⏳ Disk/file UI and filesystem polish
-- ⏳ Turtle equipment visuals
-- 🌟 In-game code editor with type completion
+- ✅ Turtle equipment (foot movement profiles, arm tools, top modules; equipped parts rendered on the model)
+- ✅ Cable directional rendering — thin wire segments that visually connect to adjacent devices
+- ✅ Computer IDE layout — file tree pane and 3-pane interface
+- ⏳ Block and item texture pass (several blocks still use placeholder art)
+- ⏳ Editor polish (multi-file tabs, syntax highlighting, run/stop controls)
+- 🌟 Turtle network control plane and resident daemons
 - 🔭 NeoForge support
 
 ## Contributing
