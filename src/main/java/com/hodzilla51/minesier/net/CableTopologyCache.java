@@ -4,11 +4,11 @@ import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.ModContent;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
@@ -31,11 +31,11 @@ public final class CableTopologyCache {
   private static final int MAX_CABLES_PER_SEGMENT = 4_096;
 
   // Keyed by Level reference (object identity — Level doesn't override equals/hashCode).
-  private static final Map<Level, CableTopologyCache> CACHES = new HashMap<>();
+  private static final Map<Level, CableTopologyCache> CACHES = new ConcurrentHashMap<>();
   private static boolean initialized;
 
   // Maps every cable BlockPos in a segment to that segment's snapshot (shared reference).
-  private final Map<BlockPos, SegmentSnapshot> byPos = new HashMap<>();
+  private final Map<BlockPos, SegmentSnapshot> byPos = new ConcurrentHashMap<>();
 
   private CableTopologyCache() {}
 
