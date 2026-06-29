@@ -224,6 +224,62 @@ class JsComputerResidentTest {
   }
 
   @Test
+  void collectDueTimersIsServerSafeAndPendingPreventsDoubleCollect() {
+    JsComputer computer = new JsComputer();
+    computer.run("every(1, function(){ print('tick'); });");
+
+    // First collect (no JS): the timer falls due and is marked pending.
+    List<Object> due = computer.collectDueTimers();
+    assertEquals(1, due.size());
+    // A second collect before firing must NOT re-collect the pending timer.
+    assertTrue(computer.collectDueTimers().isEmpty(), "pending timer is not collected twice");
+
+    // Firing it (JS) re-arms and clears pending.
+    assertEquals(List.of("tick"), computer.fireTimer(due.get(0)));
+    assertTrue(computer.isResident(), "repeating timer stays resident after firing");
+
+    // Next interval: collectable again.
+    assertEquals(1, computer.collectDueTimers().size());
+  }
+
+  @Test
+  void executorRoutesReceiveCallbackOffThread() {
+    FakeNetwork network = new FakeNetwork();
+    JsComputer computer = withNetwork(network);
+    List<Runnable> posted = new ArrayList<>();
+    computer.setExecutor(posted::add); // capture jobs instead of running them inline
+
+    computer.run("net.nic('north').onReceive(function(f){ print('got ' + f.data); });");
+    network.deliver("north", new NetworkFrame("peer", "me", "hi"));
+
+    // The callback did not run inline — it was posted to the executor.
+    assertEquals(1, posted.size());
+    assertTrue(network.output.isEmpty(), "callback must not run until the executor runs the job");
+
+    posted.get(0).run(); // simulate the owning thread draining its queue
+    assertTrue(
+        network.output.contains("got hi"), "callback runs when the job runs: " + network.output);
+  }
+
+  @Test
+  void actionRunnerMakesAliveButNotResident() {
+    JsComputer computer = new JsComputer();
+    assertFalse(computer.isAlive());
+
+    computer.beginForegroundJob();
+    assertTrue(computer.isAlive(), "an executing job makes the VM alive/busy");
+    assertFalse(computer.isResident(), "a busy runner is not resident");
+
+    // Nested begin/end: the handle is held until the outermost job returns.
+    computer.beginForegroundJob();
+    computer.endForegroundJob();
+    assertTrue(computer.isAlive(), "still busy: inner job ended, outer still running");
+
+    computer.endForegroundJob();
+    assertFalse(computer.isAlive(), "no job running and no resident handle");
+  }
+
+  @Test
   void clearTimersLeavesListenerResident() {
     FakeNetwork network = new FakeNetwork();
     JsComputer computer = withNetwork(network);

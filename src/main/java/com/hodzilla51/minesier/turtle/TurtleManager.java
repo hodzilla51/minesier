@@ -152,14 +152,40 @@ public final class TurtleManager {
     for (Iterator<Running> it = ACTIVE.iterator(); it.hasNext(); ) {
       Running r = it.next();
       r.brain.tick();
+      // Drive resident timers once the foreground program is done (so they start counting from the
+      // resident phase, like a computer's after run()): advance countdowns on the server thread (no
+      // JS) and hand any that fell due to the runner thread, where the callback executes paced by
+      // tick() like any turtle op.
+      if (r.brain.isForegroundDone()) {
+        for (Object due : r.vm.collectDueTimers()) {
+          r.brain.enqueue(() -> r.vm.fireTimer(due));
+        }
+      }
       flushOutput(r, true);
       r.ticks++;
-      if (r.ticks > MineSIerConfig.maxTurtleProgramTicks && !r.brain.isFinished()) {
+      // The program-tick budget bounds the FOREGROUND program only. A resident daemon runs
+      // indefinitely; each callback is separately bounded by the instruction budget.
+      if (!r.brain.isForegroundDone()
+          && r.ticks > MineSIerConfig.maxTurtleProgramTicks
+          && !r.brain.isFinished()) {
         r.brain.abort();
       }
       if (r.brain.isFinished() || r.brain.isAborted()) {
         finish(r);
         it.remove();
+      }
+    }
+  }
+
+  /**
+   * Stops the program or resident daemon running on the turtle at {@code pos} (the Stop control).
+   */
+  public static void stop(Level level, BlockPos pos) {
+    for (Running r : ACTIVE) {
+      if (r.level == level && r.world.pos().equals(pos)) {
+        r.vm.stopAllHandles(); // drop timers/listeners so the runner's resident loop exits
+        r.brain.abort(); // wake + unwind the worker; finish() writes back on the next tick
+        return;
       }
     }
   }
