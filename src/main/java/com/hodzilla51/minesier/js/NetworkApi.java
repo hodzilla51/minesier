@@ -28,9 +28,12 @@ public interface NetworkApi {
 
   boolean setReceiveListener(String interfaceName, NetworkListener listener);
 
-  boolean clearReceiveListener(String interfaceName);
-
-  void clearReceiveListeners();
+  /**
+   * Compare-and-clear: clears the listener on {@code interfaceName} only if it is still {@code
+   * expected} (identity), so a late disposal can't clobber a listener that already replaced it.
+   * Lock-free (a single volatile compare-and-set on the NIC slot). Returns true if it cleared.
+   */
+  boolean clearReceiveListener(String interfaceName, NetworkListener expected);
 
   void reportOutput(List<String> lines);
 }

@@ -163,21 +163,15 @@ public final class TurtleNetworkState implements NetworkApi {
   }
 
   @Override
-  public boolean clearReceiveListener(String interfaceName) {
+  public boolean clearReceiveListener(String interfaceName, NetworkListener expected) {
     Direction face = parseFace(interfaceName);
     NicState nic = face == null ? null : nics.get(face);
-    if (nic == null) {
+    // Lock-free compare-and-clear on the volatile slot: only clear if still the current listener.
+    if (nic == null || nic.listener != expected) {
       return false;
     }
     nic.listener = null;
     return true;
-  }
-
-  @Override
-  public void clearReceiveListeners() {
-    for (NicState nic : nics.values()) {
-      nic.listener = null;
-    }
   }
 
   @Override
