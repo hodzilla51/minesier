@@ -5,8 +5,6 @@ import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -24,20 +22,12 @@ public final class WirelessNetwork {
   /** Broadcast range in blocks (near-field). */
   public static final int RANGE = 16;
 
-  private static final Map<Level, Map<Cell, Set<BlockPos>>> MODEMS = new ConcurrentHashMap<>();
-  private static boolean initialized;
+  private static final PerLevelCache<Map<Cell, Set<BlockPos>>> MODEMS = new PerLevelCache<>();
 
   private WirelessNetwork() {}
 
   public static void init() {
-    if (initialized) {
-      return;
-    }
-    initialized = true;
-    // Free a dimension's modem registry when it unloads mid-session; SERVER_STOPPED is the
-    // catch-all.
-    ServerLevelEvents.UNLOAD.register((server, level) -> MODEMS.remove(level));
-    ServerLifecycleEvents.SERVER_STOPPED.register(server -> MODEMS.clear());
+    MODEMS.init();
   }
 
   public static void register(Level level, BlockPos pos) {
