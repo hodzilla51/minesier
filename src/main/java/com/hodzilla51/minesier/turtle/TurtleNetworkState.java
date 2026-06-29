@@ -8,6 +8,7 @@ import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.NetworkManager;
+import com.hodzilla51.minesier.net.SendResult;
 import com.hodzilla51.minesier.net.TurtleVisualAction;
 import com.hodzilla51.minesier.net.TurtleVisualS2C;
 import com.hodzilla51.minesier.net.WirelessNetwork;
@@ -96,7 +97,7 @@ public final class TurtleNetworkState implements NetworkApi {
   }
 
   @Override
-  public boolean send(String destination, String data) {
+  public SendResult send(String destination, String data) {
     return send(legacyFace(), destination, data);
   }
 
@@ -112,9 +113,9 @@ public final class TurtleNetworkState implements NetworkApi {
   }
 
   @Override
-  public boolean send(String interfaceName, String destination, String data) {
+  public SendResult send(String interfaceName, String destination, String data) {
     Direction face = parseFace(interfaceName);
-    return face != null && send(face, destination, data);
+    return face == null ? SendResult.REJECTED : send(face, destination, data);
   }
 
   @Override
@@ -124,18 +125,19 @@ public final class TurtleNetworkState implements NetworkApi {
   }
 
   @Override
-  public boolean forward(String interfaceName, NetworkFrame frame) {
+  public SendResult forward(String interfaceName, NetworkFrame frame) {
     Direction face = parseFace(interfaceName);
     if (face == null
         || frame.destination().isBlank()
         || frame.data().getBytes(StandardCharsets.UTF_8).length > MineSIerConfig.maxFrameBytes) {
-      return false;
+      return SendResult.REJECTED;
     }
     NetworkFrame forwarded = frame.nextHop();
     if (forwarded == null) {
-      return false;
+      return SendResult.REJECTED;
     }
-    return onServer(() -> emit(face, forwarded, TurtleVisualAction.NET_FORWARD, ">.>"), false);
+    return onServer(
+        () -> emit(face, forwarded, TurtleVisualAction.NET_FORWARD, ">.>"), SendResult.REJECTED);
   }
 
   @Override
@@ -197,10 +199,10 @@ public final class TurtleNetworkState implements NetworkApi {
         false);
   }
 
-  private boolean send(Direction face, String destination, String data) {
+  private SendResult send(Direction face, String destination, String data) {
     if (destination.isBlank()
         || data.getBytes(StandardCharsets.UTF_8).length > MineSIerConfig.maxFrameBytes) {
-      return false;
+      return SendResult.REJECTED;
     }
     return onServer(
         () ->
@@ -209,7 +211,7 @@ public final class TurtleNetworkState implements NetworkApi {
                 new NetworkFrame(addressFor(face), destination, data),
                 TurtleVisualAction.NET_SEND,
                 "[].>@"),
-        false);
+        SendResult.REJECTED);
   }
 
   private NetworkFrame receiveFrame(Direction face) {
@@ -217,25 +219,25 @@ public final class TurtleNetworkState implements NetworkApi {
     return nic == null ? null : nic.inbox.pollFirst();
   }
 
-  private boolean emit(
+  private SendResult emit(
       Direction face, NetworkFrame frame, TurtleVisualAction visualAction, String visualDetail) {
     ServerLevel currentLevel = level;
     BlockPos currentPos = pos;
     if (currentLevel == null || currentPos == null) {
-      return false;
+      return SendResult.REJECTED;
     }
     BlockPos adjacent = currentPos.relative(face);
-    boolean sent;
+    SendResult result;
     if (currentLevel.getBlockState(adjacent).is(ModContent.WIRELESS_MODEM_BLOCK)) {
       WirelessNetwork.deliver(currentLevel, adjacent, frame);
-      sent = true;
+      result = SendResult.DELIVERED;
     } else {
-      sent = CableNetwork.send(currentLevel, currentPos, face, frame);
+      result = CableNetwork.send(currentLevel, currentPos, face, frame);
     }
-    if (sent) {
+    if (result == SendResult.DELIVERED) {
       emitVisual(visualAction, visualDetail);
     }
-    return sent;
+    return result;
   }
 
   private Direction legacyFace() {

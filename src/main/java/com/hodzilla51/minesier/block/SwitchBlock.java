@@ -1,9 +1,11 @@
 package com.hodzilla51.minesier.block;
 
+import com.hodzilla51.minesier.net.CableTopologyCache;
 import com.hodzilla51.minesier.net.SwitchStatusS2C;
 import com.mojang.serialization.MapCodec;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -29,6 +31,20 @@ public class SwitchBlock extends BaseEntityBlock {
   @Override
   public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
     return new SwitchBlockEntity(pos, state);
+  }
+
+  @Override
+  protected void onPlace(
+      BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+    super.onPlace(state, level, pos, oldState, movedByPiston);
+    CableTopologyCache.invalidateAt(level, pos);
+  }
+
+  @Override
+  protected void affectNeighborsAfterRemoval(
+      BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
+    CableTopologyCache.invalidateAt(level, pos);
+    super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
   }
 
   @Override

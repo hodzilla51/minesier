@@ -1,12 +1,15 @@
 package com.hodzilla51.minesier.block;
 
 import com.hodzilla51.minesier.ModContent;
+import com.hodzilla51.minesier.net.CableTopologyCache;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
@@ -62,6 +65,20 @@ public class CableBlock extends Block {
   @Override
   public BlockState getStateForPlacement(BlockPlaceContext context) {
     return computeState(defaultBlockState(), context.getLevel(), context.getClickedPos());
+  }
+
+  @Override
+  protected void onPlace(
+      BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+    super.onPlace(state, level, pos, oldState, movedByPiston);
+    CableTopologyCache.invalidateAt(level, pos);
+  }
+
+  @Override
+  protected void affectNeighborsAfterRemoval(
+      BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
+    CableTopologyCache.invalidateAt(level, pos);
+    super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
   }
 
   @Override
