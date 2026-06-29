@@ -337,6 +337,16 @@ public final class MineSIerNet {
     if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR) {
       return;
     }
+    if (level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
+      if (!turtle.ensureAccess(player)) {
+        return;
+      }
+      // Stops a foreground program or a resident daemon; the manager writes back + replies on the
+      // next tick (finish()), so there's no immediate transcript push here.
+      TurtleManager.stop(level, pos);
+      ServerPlayNetworking.send(player, new ProcessStateS2C(false, ""));
+      return;
+    }
     if (!(level.getBlockEntity(pos) instanceof ComputerBlockEntity computer)) {
       return;
     }

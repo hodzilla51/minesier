@@ -7,6 +7,8 @@ import com.hodzilla51.minesier.net.TurtleVisualAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Tick-paced execution engine for one turtle program.
@@ -64,8 +66,16 @@ public final class TurtleBrain {
   private Object result;
   private volatile boolean aborted;
   private volatile boolean finished;
+  private volatile boolean foregroundDone;
   private int streamedLines;
   private Thread worker;
+
+  /**
+   * Resident-phase work queue. After the foreground program ends, this same worker thread serves
+   * timer-fire / frame-deliver jobs from here one at a time, so resident callbacks never run JS
+   * concurrently with each other (or with a still-running foreground program).
+   */
+  private final BlockingQueue<Runnable> jobs = new LinkedBlockingQueue<>();
 
   public TurtleBrain(JsComputer vm, TurtleApi world, String program) {
     this.vm = vm;
@@ -93,9 +103,21 @@ public final class TurtleBrain {
   public void start() {
     vm.setTurtle(proxy);
     vm.setOutputListener(this::captureOutput);
+    // Resident callbacks (timer fire / frame deliver) run on this same worker via the queue.
+    vm.setExecutor(this::enqueue);
     worker = new Thread(this::runProgram, "minesier-turtle");
     worker.setDaemon(true);
     worker.start();
+  }
+
+  /** True once the foreground program has returned (the resident phase, if any, has begun). */
+  public boolean isForegroundDone() {
+    return foregroundDone;
+  }
+
+  /** Posts a callback job to the runner thread — the VM's {@link JsComputer.JsExecutor}. */
+  public void enqueue(Runnable job) {
+    jobs.add(job);
   }
 
   private void captureOutput(String line) {
@@ -108,18 +130,52 @@ public final class TurtleBrain {
 
   private void runProgram() {
     try {
-      List<String> out = vm.run(program);
-      if (out.stream().anyMatch(line -> line.startsWith("error:"))) {
-        world.visual(TurtleVisualAction.ERROR, "!");
+      runForeground();
+      // Resident phase: if the program left a daemon (timer/listener), keep serving its callbacks
+      // on this one thread until the registry no longer keeps the VM resident, or we're stopped.
+      while (vm.isResident() && !aborted) {
+        Runnable job;
+        try {
+          job = jobs.take();
+        } catch (InterruptedException e) {
+          break;
+        }
+        if (aborted) {
+          break;
+        }
+        vm.beginForegroundJob();
+        try {
+          job.run();
+        } finally {
+          vm.endForegroundJob();
+        }
       }
+    } finally {
       synchronized (lock) {
-        int tailStart = Math.min(streamedLines, out.size());
-        output.addAll(out.subList(tailStart, out.size()));
         finished = true;
         lock.notifyAll();
       }
-    } finally {
       vm.setOutputListener(null);
+    }
+  }
+
+  /** Runs the foreground program to completion (the worker holds the VM monitor throughout). */
+  private void runForeground() {
+    List<String> out;
+    vm.beginForegroundJob();
+    try {
+      out = vm.run(program);
+    } finally {
+      vm.endForegroundJob();
+      foregroundDone = true;
+    }
+    if (out.stream().anyMatch(line -> line.startsWith("error:"))) {
+      world.visual(TurtleVisualAction.ERROR, "!");
+    }
+    synchronized (lock) {
+      int tailStart = Math.min(streamedLines, out.size());
+      output.addAll(out.subList(tailStart, out.size()));
+      lock.notifyAll();
     }
   }
 
