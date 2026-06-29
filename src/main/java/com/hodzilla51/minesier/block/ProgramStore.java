@@ -17,8 +17,8 @@ import net.minecraft.world.item.ItemStack;
  * A terminal block entity (computer or turtle) with two storage drives:
  *
  * <ul>
- *   <li><b>C:</b> – local storage, always available, backed by a per-device UUID at
- *       {@code <world>/minesier/computers/<device-uuid>/}
+ *   <li><b>C:</b> – local storage, always available, backed by a per-device UUID at {@code
+ *       <world>/minesier/computers/<device-uuid>/}
  *   <li><b>D:</b> – disk storage, only available when a disk item is inserted, backed by the disk's
  *       UUID at {@code <world>/minesier/disks/<disk-uuid>/}
  * </ul>
@@ -240,7 +240,19 @@ public interface ProgramStore {
   }
 
   // Legacy shims kept for internal callers
-  default void saveProgram(String name, String source) { saveFile(name, source); }
-  default String loadProgram(String name) { return readFile(name); }
-  default void deleteProgram(String name) { deleteFile(name); }
+  default void saveProgram(String name, String source) {
+    saveFile(name, source);
+  }
+
+  default String loadProgram(String name) {
+    String src = readFile(name);
+    if (src == null && !name.endsWith(".js")) {
+      src = readFile(name + ".js");
+    }
+    return src;
+  }
+
+  default void deleteProgram(String name) {
+    deleteFile(name);
+  }
 }
