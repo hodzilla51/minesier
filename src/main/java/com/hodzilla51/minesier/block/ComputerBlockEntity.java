@@ -10,6 +10,7 @@ import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.NetworkManager;
+import com.hodzilla51.minesier.net.MineSIerNet;
 import com.hodzilla51.minesier.net.SendResult;
 import com.hodzilla51.minesier.net.WirelessNetwork;
 import java.nio.file.Path;
@@ -645,13 +646,18 @@ public class ComputerBlockEntity extends BlockEntity
       String letter = ProgramStore.canonicalDrive(drive);
       if (letter == null || provider == null) return false;
       dynamicMounts().put(letter, provider);
+      MineSIerNet.refreshProgramListForViewers(
+          ComputerBlockEntity.this, ComputerBlockEntity.this);
       return true;
     }
 
     @Override
     public boolean unmount(String drive) {
       String letter = ProgramStore.canonicalDrive(drive);
-      return letter != null && dynamicMounts().remove(letter) != null;
+      if (letter == null || dynamicMounts().remove(letter) == null) return false;
+      MineSIerNet.refreshProgramListForViewers(
+          ComputerBlockEntity.this, ComputerBlockEntity.this);
+      return true;
     }
 
     @Override

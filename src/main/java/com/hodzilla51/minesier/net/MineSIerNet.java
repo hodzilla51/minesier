@@ -13,12 +13,15 @@ import com.hodzilla51.minesier.menu.TurtleEquipmentMenuProvider;
 import com.hodzilla51.minesier.menu.TurtleMenu;
 import com.hodzilla51.minesier.menu.TurtleMenuProvider;
 import com.hodzilla51.minesier.turtle.TurtleManager;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /** Registers MineSIer's payload types (both sides) and the server-side receiver. */
 public final class MineSIerNet {
@@ -54,7 +57,24 @@ public final class MineSIerNet {
 
   /** Pushes the disk's program names to the player's open terminal (for the file tree pane). */
   public static void sendProgramList(ServerPlayer player, ProgramStore store) {
-    ServerPlayNetworking.send(player, new ProgramListS2C(String.join("\n", store.programNames())));
+    if (!(store instanceof BlockEntity owner)) {
+      return;
+    }
+    ServerPlayNetworking.send(
+        player, new ProgramListS2C(owner.getBlockPos(), String.join("\n", store.programNames())));
+  }
+
+  /** Pushes an updated file tree to players tracking this device. */
+  public static void refreshProgramListForViewers(BlockEntity owner, ProgramStore store) {
+    if (!(owner.getLevel() instanceof ServerLevel serverLevel)) {
+      return;
+    }
+    for (ServerPlayer player : PlayerLookup.tracking(serverLevel, owner.getBlockPos())) {
+      if (store instanceof AccessControlledBlockEntity access && !access.canAccess(player)) {
+        continue;
+      }
+      sendProgramList(player, store);
+    }
   }
 
   /** Server-authoritative command execution. */

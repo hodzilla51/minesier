@@ -103,7 +103,9 @@ public class MineSIerClient implements ClientModInitializer {
     ClientPlayNetworking.registerGlobalReceiver(
         ProgramListS2C.TYPE,
         (payload, context) ->
-            context.client().execute(() -> ComputerScreen.showPrograms(payload.names())));
+            context
+                .client()
+                .execute(() -> ComputerScreen.showPrograms(payload.pos(), payload.names())));
 
     // Server notifies the client when a resident process starts or stops.
     ClientPlayNetworking.registerGlobalReceiver(

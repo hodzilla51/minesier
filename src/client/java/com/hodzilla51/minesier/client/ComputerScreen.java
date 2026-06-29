@@ -185,8 +185,8 @@ public class ComputerScreen extends Screen {
     if (open.stopButton != null) open.stopButton.active = running;
   }
 
-  public static void showPrograms(String names) {
-    if (open != null) {
+  public static void showPrograms(BlockPos pos, String names) {
+    if (open != null && open.pos.equals(pos)) {
       open.programs = names.isEmpty() ? new String[0] : names.split("\n", -1);
       open.rebuildFileRows();
     }
