@@ -13,10 +13,9 @@ import com.hodzilla51.minesier.block.WirelessModemBlock;
 import com.hodzilla51.minesier.block.WirelessModemBlockEntity;
 import com.hodzilla51.minesier.item.DiskContents;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
-import com.mojang.serialization.Codec;
-import net.minecraft.network.codec.ByteBufCodecs;
 import com.hodzilla51.minesier.menu.TurtleMenu;
 import com.hodzilla51.minesier.menu.TurtleMenuData;
+import com.mojang.serialization.Codec;
 import java.util.function.Function;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuType;
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
@@ -25,6 +24,7 @@ import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.inventory.MenuType;
@@ -105,8 +105,8 @@ public final class ModContent {
               .build());
 
   /**
-   * UUID (as a string) that maps this disk item to its directory under
-   * {@code <world>/minesier/disks/<id>/}. Assigned lazily on first file operation.
+   * UUID (as a string) that maps this disk item to its directory under {@code
+   * <world>/minesier/disks/<id>/}. Assigned lazily on first file operation.
    */
   public static final DataComponentType<String> DISK_ID =
       Registry.register(
@@ -157,9 +157,7 @@ public final class ModContent {
     Identifier id = Identifier.fromNamespaceAndPath(MineSIer.MOD_ID, "disk");
     ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id);
     return Registry.register(
-        BuiltInRegistries.ITEM,
-        id,
-        new Item(new Item.Properties().setId(key).stacksTo(1)));
+        BuiltInRegistries.ITEM, id, new Item(new Item.Properties().setId(key).stacksTo(1)));
   }
 
   private static Item registerSimpleItem(String path, int maxStackSize) {
