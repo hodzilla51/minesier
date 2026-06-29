@@ -24,9 +24,9 @@ public final class CableNetwork {
   /**
    * Offers a frame to the cable segment attached to {@code sourceFace}.
    *
-   * @return {@link SendResult#REJECTED} when no cable is attached, {@link SendResult#CONGESTED} when
-   *     the segment's per-tick bandwidth budget is exhausted, or {@link SendResult#DELIVERED} once
-   *     the frame has been offered to every NIC on the segment.
+   * @return {@link SendResult#REJECTED} when no cable is attached, {@link SendResult#CONGESTED}
+   *     when the segment's per-tick bandwidth budget is exhausted, or {@link SendResult#DELIVERED}
+   *     once the frame has been offered to every NIC on the segment.
    */
   public static SendResult send(
       ServerLevel level, BlockPos source, Direction sourceFace, NetworkFrame frame) {

@@ -11,9 +11,9 @@ package com.hodzilla51.minesier.net;
  *       blank destination, an oversized frame, or a frame that hit the hop limit. Retrying it
  *       unchanged will not help.
  *   <li>{@link #CONGESTED} → JS {@code null}: the segment's per-tick bandwidth budget ({@link
- *       com.hodzilla51.minesier.MineSIerConfig#segmentFramesPerTick}) is exhausted, so the frame was
- *       dropped by the medium. Retrying on a later tick may succeed; splitting the segment with a
- *       switch raises the aggregate budget.
+ *       com.hodzilla51.minesier.MineSIerConfig#segmentFramesPerTick}) is exhausted, so the frame
+ *       was dropped by the medium. Retrying on a later tick may succeed; splitting the segment with
+ *       a switch raises the aggregate budget.
  * </ul>
  */
 public enum SendResult {

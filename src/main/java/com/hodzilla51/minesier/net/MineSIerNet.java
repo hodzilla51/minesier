@@ -6,8 +6,6 @@ import com.hodzilla51.minesier.block.ProgramStore;
 import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import com.hodzilla51.minesier.disk.DiskStorage;
 import com.hodzilla51.minesier.disk.FileSystemProvider;
-import com.hodzilla51.minesier.net.ProcessStateS2C;
-import com.hodzilla51.minesier.net.StopProcessC2S;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenu;
 import com.hodzilla51.minesier.menu.TurtleEquipmentMenuProvider;
 import com.hodzilla51.minesier.menu.TurtleMenu;
@@ -51,8 +49,7 @@ public final class MineSIerNet {
     PayloadTypeRegistry.clientboundPlay().register(SwitchStatusS2C.TYPE, SwitchStatusS2C.CODEC);
     PayloadTypeRegistry.clientboundPlay().register(AccessPromptS2C.TYPE, AccessPromptS2C.CODEC);
     PayloadTypeRegistry.serverboundPlay().register(StopProcessC2S.TYPE, StopProcessC2S.CODEC);
-    PayloadTypeRegistry.clientboundPlay()
-        .register(ProcessStateS2C.TYPE, ProcessStateS2C.CODEC);
+    PayloadTypeRegistry.clientboundPlay().register(ProcessStateS2C.TYPE, ProcessStateS2C.CODEC);
   }
 
   /** Pushes the disk's program names to the player's open terminal (for the file tree pane). */
@@ -347,8 +344,7 @@ public final class MineSIerNet {
       return;
     }
     computer.stopResident();
-    ServerPlayNetworking.send(
-        player, new TerminalScreenS2C(pos, computer.getTranscript(), false));
+    ServerPlayNetworking.send(player, new TerminalScreenS2C(pos, computer.getTranscript(), false));
     ServerPlayNetworking.send(player, new ProcessStateS2C(false, ""));
   }
 }

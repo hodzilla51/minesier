@@ -114,7 +114,8 @@ public class MineSIerClient implements ClientModInitializer {
             context
                 .client()
                 .execute(
-                    () -> ComputerScreen.setProcessState(payload.running(), payload.processName())));
+                    () ->
+                        ComputerScreen.setProcessState(payload.running(), payload.processName())));
 
     ClientPlayNetworking.registerGlobalReceiver(
         AccessPromptS2C.TYPE,

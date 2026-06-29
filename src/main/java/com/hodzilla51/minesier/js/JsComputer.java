@@ -690,8 +690,8 @@ public final class JsComputer {
   }
 
   /**
-   * Maps a {@link SendResult} to the tri-state a program sees: {@code true} delivered, {@code false}
-   * permanently rejected, {@code null} dropped by congestion (retry on a later tick).
+   * Maps a {@link SendResult} to the tri-state a program sees: {@code true} delivered, {@code
+   * false} permanently rejected, {@code null} dropped by congestion (retry on a later tick).
    */
   private static Object toScriptSendResult(SendResult result) {
     return switch (result) {

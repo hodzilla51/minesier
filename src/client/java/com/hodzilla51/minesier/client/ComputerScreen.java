@@ -54,14 +54,14 @@ public class ComputerScreen extends Screen {
   private static final int DLG_H = 62;
 
   // Panel skin colors (ARGB)
-  private static final int PANEL_COLOR    = 0xFF0C120C;
-  private static final int BORDER_COLOR   = 0xFF3A6B3A;
+  private static final int PANEL_COLOR = 0xFF0C120C;
+  private static final int BORDER_COLOR = 0xFF3A6B3A;
   private static final int TITLEBAR_COLOR = 0xFF18301A;
-  private static final int TITLE_COLOR    = 0xFF7CFC7C;
-  private static final int TEXT_COLOR     = 0xFFD0E8D0;
-  private static final int DIRTY_COLOR    = 0xFFFFAA44;
-  private static final int INPUT_BG       = 0xFF1A2A1A;
-  private static final int SELECTED_BG     = 0xFF24482A;
+  private static final int TITLE_COLOR = 0xFF7CFC7C;
+  private static final int TEXT_COLOR = 0xFFD0E8D0;
+  private static final int DIRTY_COLOR = 0xFFFFAA44;
+  private static final int INPUT_BG = 0xFF1A2A1A;
+  private static final int SELECTED_BG = 0xFF24482A;
 
   private static ComputerScreen open;
 
@@ -75,12 +75,14 @@ public class ComputerScreen extends Screen {
   // ── Tabs ─────────────────────────────────────────────────────────────────
 
   /**
-   * @param path          in-game file path (e.g. {@code startup.js}); never null
-   * @param savedContent  content last confirmed by the server — dirty baseline
+   * @param path in-game file path (e.g. {@code startup.js}); never null
+   * @param savedContent content last confirmed by the server — dirty baseline
    * @param editorContent current editor buffer; updated on every keystroke
    */
   private record Tab(String path, String savedContent, String editorContent) {
-    boolean dirty() { return !editorContent.equals(savedContent); }
+    boolean dirty() {
+      return !editorContent.equals(savedContent);
+    }
 
     String displayName() {
       // Strip drive prefix (C:/ or D:/) then take the last segment.
@@ -92,6 +94,7 @@ public class ComputerScreen extends Screen {
 
   private final List<Tab> openTabs = new ArrayList<>();
   private int activeTab = -1;
+
   /** Path requested from the server but not yet confirmed. */
   private String pendingLoadPath = null;
 
@@ -109,13 +112,14 @@ public class ComputerScreen extends Screen {
 
   /** Full paths of collapsed folders (e.g. {@code "C:/"}, {@code "C:/lib/"}). */
   private final java.util.Set<String> collapsedFolders = new java.util.HashSet<>();
+
   /** The folder currently selected (its full path with trailing {@code /}), or null. */
   private String selectedFolder = null;
 
   /**
-   * @param depth      indentation level
-   * @param label      text to draw (folders/headers carry an expand marker)
-   * @param path       file path for file rows; null for folders/headers
+   * @param depth indentation level
+   * @param label text to draw (folders/headers carry an expand marker)
+   * @param path file path for file rows; null for folders/headers
    * @param folderPath folder path (trailing {@code /}) for folder/header rows; null for files
    */
   private record FileRow(int depth, String label, String path, String folderPath) {}
@@ -127,12 +131,14 @@ public class ComputerScreen extends Screen {
 
   // ── Inline new-file input ─────────────────────────────────────────────────
   /**
-   * True while the user is typing a new filename inline in the file pane. Drawing is done in
-   * {@link #renderFilePane}; keyboard is handled by overriding {@link #keyPressed} and {@link
-   * #charTyped}. No MC widget is involved, which avoids widget-lifecycle timing issues.
+   * True while the user is typing a new filename inline in the file pane. Drawing is done in {@link
+   * #renderFilePane}; keyboard is handled by overriding {@link #keyPressed} and {@link #charTyped}.
+   * No MC widget is involved, which avoids widget-lifecycle timing issues.
    */
   private boolean newFileActive = false;
+
   private final StringBuilder newFileName = new StringBuilder();
+
   /** Target folder for the inline new-file input (trailing {@code /}), or null for C: root. */
   private String newFileDir = null;
 
@@ -201,19 +207,21 @@ public class ComputerScreen extends Screen {
     if (turtle) {
       addRenderableWidget(
           Button.builder(Component.literal("Inventory"), b -> openInventory())
-              .bounds(MARGIN, 2, 80, 16).build());
+              .bounds(MARGIN, 2, 80, 16)
+              .build());
       addRenderableWidget(
           Button.builder(Component.literal("Equipment"), b -> openEquipment())
-              .bounds(MARGIN + 84, 2, 90, 16).build());
+              .bounds(MARGIN + 84, 2, 90, 16)
+              .build());
     }
 
-    int contentLeft  = MARGIN + PANE_W + PANE_GAP;
-    int buttonY      = this.height - MARGIN - BUTTON_H;
-    int terminalY    = buttonY - 4 - TERMINAL_H;
-    int statusY      = terminalY - 4 - STATUS_H;
-    int editorTopY   = CONTENT_TOP + TAB_H;
-    int editorLeft   = contentLeft + GUTTER_W;
-    int editorWidth  = this.width - editorLeft - MARGIN;
+    int contentLeft = MARGIN + PANE_W + PANE_GAP;
+    int buttonY = this.height - MARGIN - BUTTON_H;
+    int terminalY = buttonY - 4 - TERMINAL_H;
+    int statusY = terminalY - 4 - STATUS_H;
+    int editorTopY = CONTENT_TOP + TAB_H;
+    int editorLeft = contentLeft + GUTTER_W;
+    int editorWidth = this.width - editorLeft - MARGIN;
     int editorHeight = Math.max(20, statusY - 4 - editorTopY);
 
     this.editor =
@@ -223,7 +231,9 @@ public class ComputerScreen extends Screen {
             .setShowBackground(true)
             .setShowDecorations(true)
             .build(
-                font, editorWidth, editorHeight,
+                font,
+                editorWidth,
+                editorHeight,
                 Component.literal("JS program — Ctrl/Cmd+Enter to run"));
     this.editor.setCharacterLimit(8192);
     this.editor.setValueListener(
@@ -236,27 +246,31 @@ public class ComputerScreen extends Screen {
     addRenderableWidget(this.editor);
 
     // Bottom row: [Save] [Eject] [Stop] [Run]
-    int gap    = 4;
-    int bw     = 44;
-    int runX   = this.width - MARGIN - bw;
-    int stopX  = runX   - gap - bw;
-    int ejectX = stopX  - gap - bw;
-    int saveX  = ejectX - gap - bw;
+    int gap = 4;
+    int bw = 44;
+    int runX = this.width - MARGIN - bw;
+    int stopX = runX - gap - bw;
+    int ejectX = stopX - gap - bw;
+    int saveX = ejectX - gap - bw;
 
     addRenderableWidget(
         Button.builder(Component.literal("Save"), b -> saveCurrentTab())
-            .bounds(saveX, buttonY, bw, BUTTON_H).build());
+            .bounds(saveX, buttonY, bw, BUTTON_H)
+            .build());
     addRenderableWidget(
         Button.builder(Component.literal("Eject"), b -> eject())
-            .bounds(ejectX, buttonY, bw, BUTTON_H).build());
+            .bounds(ejectX, buttonY, bw, BUTTON_H)
+            .build());
     this.stopButton =
         Button.builder(Component.literal("Stop"), b -> stopCurrent())
-            .bounds(stopX, buttonY, bw, BUTTON_H).build();
+            .bounds(stopX, buttonY, bw, BUTTON_H)
+            .build();
     this.stopButton.active = isRunning;
     addRenderableWidget(this.stopButton);
     this.runButton =
         Button.builder(Component.literal("Run"), b -> runCurrent())
-            .bounds(runX, buttonY, bw, BUTTON_H).build();
+            .bounds(runX, buttonY, bw, BUTTON_H)
+            .build();
     this.runButton.active = !isRunning;
     addRenderableWidget(this.runButton);
 
@@ -313,7 +327,8 @@ public class ComputerScreen extends Screen {
           (colon > 0 && colon + 1 < name.length() && name.charAt(colon + 1) == '/')
               ? name.substring(0, colon + 1).toUpperCase()
               : "C:";
-      String relative = drive.length() + 1 <= name.length() ? name.substring(drive.length() + 1) : "";
+      String relative =
+          drive.length() + 1 <= name.length() ? name.substring(drive.length() + 1) : "";
       Dir root = drives.computeIfAbsent(drive, k -> new Dir());
       if (relative.isEmpty()) continue; // bare drive root — header only
       Dir node = root;
@@ -391,18 +406,20 @@ public class ComputerScreen extends Screen {
     boolean hasDrive = name.length() > 2 && name.charAt(1) == ':';
     String fullPath;
     if (hasDrive) {
-      fullPath = name;                 // explicit drive overrides the selected folder
+      fullPath = name; // explicit drive overrides the selected folder
     } else if (dir != null) {
-      fullPath = dir + name;           // dir ends with "/"
+      fullPath = dir + name; // dir ends with "/"
     } else {
-      fullPath = "C:/" + name;         // no folder selected → C: root
+      fullPath = "C:/" + name; // no folder selected → C: root
     }
     if (fullPath.endsWith("/")) {
       // Create directory — no tab opened.
-      ClientPlayNetworking.send(new ProgramActionC2S(this.pos, ProgramActionC2S.MKDIR, fullPath, "", ""));
+      ClientPlayNetworking.send(
+          new ProgramActionC2S(this.pos, ProgramActionC2S.MKDIR, fullPath, "", ""));
     } else {
       // Create empty file and open it in a tab.
-      ClientPlayNetworking.send(new ProgramActionC2S(this.pos, ProgramActionC2S.SAVE, fullPath, "", ""));
+      ClientPlayNetworking.send(
+          new ProgramActionC2S(this.pos, ProgramActionC2S.SAVE, fullPath, "", ""));
       openOrFocusTab(fullPath, "");
     }
   }
@@ -446,7 +463,8 @@ public class ComputerScreen extends Screen {
     if (activeTab < 0 || activeTab >= openTabs.size()) return;
     Tab t = openTabs.get(activeTab);
     String content = t.editorContent();
-    ClientPlayNetworking.send(new ProgramActionC2S(this.pos, ProgramActionC2S.SAVE, t.path(), content, ""));
+    ClientPlayNetworking.send(
+        new ProgramActionC2S(this.pos, ProgramActionC2S.SAVE, t.path(), content, ""));
     openTabs.set(activeTab, new Tab(t.path(), content, content));
   }
 
@@ -511,8 +529,10 @@ public class ComputerScreen extends Screen {
     // Context menu: dispatch or dismiss.
     if (contextMenuFile != null) {
       int cmH = 3 * CTX_ITEM_H + 4;
-      if (mx >= contextMenuX && mx <= contextMenuX + CTX_W
-          && my >= contextMenuY && my <= contextMenuY + cmH) {
+      if (mx >= contextMenuX
+          && mx <= contextMenuX + CTX_W
+          && my >= contextMenuY
+          && my <= contextMenuY + cmH) {
         int idx = (my - contextMenuY - 2) / CTX_ITEM_H;
         if (idx >= 0 && idx < 3) {
           String file = contextMenuFile;
@@ -555,8 +575,11 @@ public class ComputerScreen extends Screen {
       }
 
       // Left-click on a row: open a file, or toggle+select a folder (skip while input active)
-      if (!newFileActive && paneRowHeight > 0
-          && mx >= MARGIN && mx <= MARGIN + PANE_W && my >= paneRowsTop) {
+      if (!newFileActive
+          && paneRowHeight > 0
+          && mx >= MARGIN
+          && mx <= MARGIN + PANE_W
+          && my >= paneRowsTop) {
         int idx = (my - paneRowsTop) / paneRowHeight;
         if (idx >= 0 && idx < fileRows.size()) {
           FileRow row = fileRows.get(idx);
@@ -574,8 +597,12 @@ public class ComputerScreen extends Screen {
     }
 
     // Right-click on a file row: context menu
-    if (event.button() == 1 && !newFileActive && paneRowHeight > 0
-        && mx >= MARGIN && mx <= MARGIN + PANE_W && my >= paneRowsTop) {
+    if (event.button() == 1
+        && !newFileActive
+        && paneRowHeight > 0
+        && mx >= MARGIN
+        && mx <= MARGIN + PANE_W
+        && my >= paneRowsTop) {
       int idx = (my - paneRowsTop) / paneRowHeight;
       if (idx >= 0 && idx < fileRows.size() && fileRows.get(idx).path() != null) {
         contextMenuFile = fileRows.get(idx).path();
@@ -592,9 +619,15 @@ public class ComputerScreen extends Screen {
   public boolean keyPressed(KeyEvent event) {
     // New-file inline input consumes all keyboard events while active.
     if (newFileActive) {
-      if (event.key() == GLFW.GLFW_KEY_ESCAPE) { cancelNewFile(); return true; }
+      if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+        cancelNewFile();
+        return true;
+      }
       boolean enter = event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER;
-      if (enter) { confirmNewFile(); return true; }
+      if (enter) {
+        confirmNewFile();
+        return true;
+      }
       if (event.key() == GLFW.GLFW_KEY_BACKSPACE && newFileName.length() > 0) {
         newFileName.deleteCharAt(newFileName.length() - 1);
         return true;
@@ -603,14 +636,29 @@ public class ComputerScreen extends Screen {
     }
 
     if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
-      if (contextMenuFile != null) { contextMenuFile = null; return true; }
-      if (renameFromPath != null) { closeRenameDialog(); return true; }
+      if (contextMenuFile != null) {
+        contextMenuFile = null;
+        return true;
+      }
+      if (renameFromPath != null) {
+        closeRenameDialog();
+        return true;
+      }
     }
     boolean enter = event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER;
-    if (renameFromPath != null && enter) { confirmRename(); return true; }
+    if (renameFromPath != null && enter) {
+      confirmRename();
+      return true;
+    }
     boolean mod = (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-    if (mod && event.key() == GLFW.GLFW_KEY_S) { saveCurrentTab(); return true; }
-    if (mod && enter) { runCurrent(); return true; }
+    if (mod && event.key() == GLFW.GLFW_KEY_S) {
+      saveCurrentTab();
+      return true;
+    }
+    if (mod && enter) {
+      runCurrent();
+      return true;
+    }
     return super.keyPressed(event);
   }
 
@@ -624,7 +672,10 @@ public class ComputerScreen extends Screen {
         ClientPlayNetworking.send(
             new ProgramActionC2S(this.pos, ProgramActionC2S.DELETE, path, "", ""));
         for (int i = openTabs.size() - 1; i >= 0; i--) {
-          if (path.equals(openTabs.get(i).path())) { closeTab(i); break; }
+          if (path.equals(openTabs.get(i).path())) {
+            closeTab(i);
+            break;
+          }
         }
       }
     }
@@ -645,19 +696,30 @@ public class ComputerScreen extends Screen {
     addRenderableWidget(this.renameInputBox);
     this.renameOkButton =
         Button.builder(Component.literal("OK"), b -> confirmRename())
-            .bounds(dlgX + 4, dlgY + 42, 72, 14).build();
+            .bounds(dlgX + 4, dlgY + 42, 72, 14)
+            .build();
     addRenderableWidget(this.renameOkButton);
     this.renameCancelButton =
         Button.builder(Component.literal("Cancel"), b -> closeRenameDialog())
-            .bounds(dlgX + 84, dlgY + 42, 76, 14).build();
+            .bounds(dlgX + 84, dlgY + 42, 76, 14)
+            .build();
     addRenderableWidget(this.renameCancelButton);
     setFocused(this.renameInputBox);
   }
 
   private void closeRenameDialog() {
-    if (renameInputBox    != null) { removeWidget(renameInputBox);    renameInputBox    = null; }
-    if (renameOkButton    != null) { removeWidget(renameOkButton);    renameOkButton    = null; }
-    if (renameCancelButton != null) { removeWidget(renameCancelButton); renameCancelButton = null; }
+    if (renameInputBox != null) {
+      removeWidget(renameInputBox);
+      renameInputBox = null;
+    }
+    if (renameOkButton != null) {
+      removeWidget(renameOkButton);
+      renameOkButton = null;
+    }
+    if (renameCancelButton != null) {
+      removeWidget(renameCancelButton);
+      renameCancelButton = null;
+    }
     renameFromPath = null;
   }
 
@@ -694,9 +756,9 @@ public class ComputerScreen extends Screen {
 
   private void renderTabBar(GuiGraphicsExtractor graphics) {
     Font font = Minecraft.getInstance().font;
-    int left  = MARGIN + PANE_W + PANE_GAP;
+    int left = MARGIN + PANE_W + PANE_GAP;
     int right = this.width - MARGIN;
-    int top   = CONTENT_TOP;
+    int top = CONTENT_TOP;
 
     graphics.fill(left, top, right, top + TAB_H, TITLEBAR_COLOR);
     graphics.fill(left, top + TAB_H - 1, right, top + TAB_H, BORDER_COLOR);
@@ -705,7 +767,7 @@ public class ComputerScreen extends Screen {
     for (int i = 0; i < openTabs.size(); i++) {
       Tab t = openTabs.get(i);
       boolean active = (i == activeTab);
-      int w  = tabWidth(t);
+      int w = tabWidth(t);
       int bg = active ? PANEL_COLOR : TITLEBAR_COLOR;
       int fg = t.dirty() ? DIRTY_COLOR : TEXT_COLOR;
       graphics.fill(x, top, x + w, top + TAB_H - (active ? 0 : 1), bg);
@@ -723,20 +785,20 @@ public class ComputerScreen extends Screen {
 
   private void renderGutter(GuiGraphicsExtractor graphics) {
     if (editor == null) return;
-    Font font    = Minecraft.getInstance().font;
-    int left     = MARGIN + PANE_W + PANE_GAP;
-    int top      = editor.getY();
-    int bottom   = top + editor.getHeight();
-    int lineH    = font.lineHeight + 1;
+    Font font = Minecraft.getInstance().font;
+    int left = MARGIN + PANE_W + PANE_GAP;
+    int top = editor.getY();
+    int bottom = top + editor.getHeight();
+    int lineH = font.lineHeight + 1;
     int innerPad = 4;
 
     graphics.fill(left, top, left + GUTTER_W, bottom, TITLEBAR_COLOR);
     graphics.fill(left + GUTTER_W - 1, top, left + GUTTER_W, bottom, BORDER_COLOR);
 
-    double scroll  = editor.scrollAmount();
-    int firstLine  = (int) (scroll / lineH);
-    int offsetPx   = (int) (scroll % lineH);
-    int lineY      = top + innerPad - offsetPx;
+    double scroll = editor.scrollAmount();
+    int firstLine = (int) (scroll / lineH);
+    int offsetPx = (int) (scroll % lineH);
+    int lineY = top + innerPad - offsetPx;
 
     for (int i = firstLine; lineY < bottom - innerPad + lineH; i++, lineY += lineH) {
       if (lineY >= top + innerPad - lineH && lineY < bottom - innerPad + lineH) {
@@ -749,12 +811,12 @@ public class ComputerScreen extends Screen {
 
   private void renderStatusBar(GuiGraphicsExtractor graphics) {
     if (editor == null) return;
-    Font font     = Minecraft.getInstance().font;
-    int left      = MARGIN + PANE_W + PANE_GAP;
-    int right     = this.width - MARGIN;
-    int buttonY   = this.height - MARGIN - BUTTON_H;
+    Font font = Minecraft.getInstance().font;
+    int left = MARGIN + PANE_W + PANE_GAP;
+    int right = this.width - MARGIN;
+    int buttonY = this.height - MARGIN - BUTTON_H;
     int terminalY = buttonY - 4 - TERMINAL_H;
-    int statusY   = terminalY - 4 - STATUS_H;
+    int statusY = terminalY - 4 - STATUS_H;
 
     graphics.fill(left, statusY, right, statusY + STATUS_H, TITLEBAR_COLOR);
     graphics.fill(left, statusY, right, statusY + 1, BORDER_COLOR);
@@ -782,7 +844,7 @@ public class ComputerScreen extends Screen {
       String value = editor.getValue();
       String before = value.substring(0, Math.min(cursorOffset, value.length()));
       int line = before.split("\n", -1).length;
-      int col  = before.length() - (before.lastIndexOf('\n') + 1);
+      int col = before.length() - (before.lastIndexOf('\n') + 1);
       return "Ln " + line + ", Col " + (col + 1);
     } catch (Exception ignored) {
       return "";
@@ -790,14 +852,14 @@ public class ComputerScreen extends Screen {
   }
 
   private void renderTerminal(GuiGraphicsExtractor graphics) {
-    Font font     = Minecraft.getInstance().font;
-    int buttonY   = this.height - MARGIN - BUTTON_H;
+    Font font = Minecraft.getInstance().font;
+    int buttonY = this.height - MARGIN - BUTTON_H;
     int terminalY = buttonY - 4 - TERMINAL_H;
     renderFilePane(graphics, font, terminalY + TERMINAL_H);
 
-    int left   = MARGIN + PANE_W + PANE_GAP;
-    int right  = this.width - MARGIN;
-    int top    = terminalY;
+    int left = MARGIN + PANE_W + PANE_GAP;
+    int right = this.width - MARGIN;
+    int top = terminalY;
     int bottom = terminalY + TERMINAL_H;
     int titleH = font.lineHeight + 6;
 
@@ -806,7 +868,7 @@ public class ComputerScreen extends Screen {
     graphics.fill(left, top, right, top + titleH, TITLEBAR_COLOR);
     graphics.text(font, "MineSIer terminal", left + 6, top + 4, TITLE_COLOR);
 
-    int lineH   = font.lineHeight + 1;
+    int lineH = font.lineHeight + 1;
     int textTop = top + titleH + 3;
     String[] lines = this.transcript.split("\n", -1);
     int maxLines = Math.max(1, (bottom - 4 - textTop) / lineH);
@@ -819,9 +881,9 @@ public class ComputerScreen extends Screen {
   }
 
   private void renderFilePane(GuiGraphicsExtractor graphics, Font font, int paneBottom) {
-    int left   = MARGIN;
-    int right  = MARGIN + PANE_W;
-    int top    = CONTENT_TOP;
+    int left = MARGIN;
+    int right = MARGIN + PANE_W;
+    int top = CONTENT_TOP;
     int titleH = font.lineHeight + 6;
 
     // Outer border + background
@@ -836,13 +898,13 @@ public class ComputerScreen extends Screen {
     int plusColor = newFileActive ? DIRTY_COLOR : TITLE_COLOR;
     graphics.text(font, "+", right - 10, top + 3, plusColor);
 
-    int lineH  = font.lineHeight + 1;
+    int lineH = font.lineHeight + 1;
     int rowTop = top + titleH + 2;
-    this.paneRowsTop   = rowTop;
+    this.paneRowsTop = rowTop;
     this.paneRowHeight = lineH;
 
     int maxChars = Math.max(1, (PANE_W - 8) / 6);
-    int boxH     = lineH + 2;
+    int boxH = lineH + 2;
 
     // Where the new-file input box goes: inside the selected folder (right after its row),
     // otherwise at the end of the C: section (just before the next drive header, if any).
@@ -876,7 +938,7 @@ public class ComputerScreen extends Screen {
         if (y >= paneBottom - 3) break;
       }
 
-      FileRow row  = fileRows.get(i);
+      FileRow row = fileRows.get(i);
       // Highlight the currently selected folder.
       if (row.folderPath() != null && row.folderPath().equals(selectedFolder)) {
         graphics.fill(left + 1, y - 1, right - 1, y + lineH - 1, SELECTED_BG);
@@ -894,7 +956,9 @@ public class ComputerScreen extends Screen {
     }
   }
 
-  /** Number of path segments below the drive (e.g. {@code "C:/lib/sub/"} → 2, {@code "C:/"} → 0). */
+  /**
+   * Number of path segments below the drive (e.g. {@code "C:/lib/sub/"} → 2, {@code "C:/"} → 0).
+   */
   private static int folderDepth(String folderPath) {
     if (folderPath == null || folderPath.length() <= 3) return 0;
     int segs = 0;
@@ -916,21 +980,24 @@ public class ComputerScreen extends Screen {
     Font font = Minecraft.getInstance().font;
     int cmH = 3 * CTX_ITEM_H + 4;
     graphics.fill(
-        contextMenuX - 1, contextMenuY - 1,
-        contextMenuX + CTX_W + 1, contextMenuY + cmH + 1, BORDER_COLOR);
+        contextMenuX - 1,
+        contextMenuY - 1,
+        contextMenuX + CTX_W + 1,
+        contextMenuY + cmH + 1,
+        BORDER_COLOR);
     graphics.fill(
-        contextMenuX, contextMenuY,
-        contextMenuX + CTX_W, contextMenuY + cmH, PANEL_COLOR);
+        contextMenuX, contextMenuY, contextMenuX + CTX_W, contextMenuY + cmH, PANEL_COLOR);
     String[] items = {"Open", "Rename", "Delete"};
     for (int i = 0; i < items.length; i++) {
-      graphics.text(font, items[i], contextMenuX + 4, contextMenuY + 2 + i * CTX_ITEM_H, TEXT_COLOR);
+      graphics.text(
+          font, items[i], contextMenuX + 4, contextMenuY + 2 + i * CTX_ITEM_H, TEXT_COLOR);
     }
   }
 
   private void renderRenameDialog(GuiGraphicsExtractor graphics) {
     Font font = Minecraft.getInstance().font;
-    int dlgX  = (this.width - DLG_W) / 2;
-    int dlgY  = (this.height - DLG_H) / 2;
+    int dlgX = (this.width - DLG_W) / 2;
+    int dlgY = (this.height - DLG_H) / 2;
     graphics.fill(dlgX - 1, dlgY - 1, dlgX + DLG_W + 1, dlgY + DLG_H + 1, BORDER_COLOR);
     graphics.fill(dlgX, dlgY, dlgX + DLG_W, dlgY + DLG_H, PANEL_COLOR);
     graphics.fill(dlgX, dlgY, dlgX + DLG_W, dlgY + font.lineHeight + 6, TITLEBAR_COLOR);
