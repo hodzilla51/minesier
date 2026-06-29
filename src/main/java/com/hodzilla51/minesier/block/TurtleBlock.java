@@ -1,11 +1,13 @@
 package com.hodzilla51.minesier.block;
 
 import com.hodzilla51.minesier.ModContent;
+import com.hodzilla51.minesier.net.CableTopologyCache;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.mojang.serialization.MapCodec;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
@@ -67,6 +69,20 @@ public class TurtleBlock extends BaseEntityBlock {
   @Override
   public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
     return new TurtleBlockEntity(pos, state);
+  }
+
+  @Override
+  protected void onPlace(
+      BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+    super.onPlace(state, level, pos, oldState, movedByPiston);
+    CableTopologyCache.invalidateAt(level, pos);
+  }
+
+  @Override
+  protected void affectNeighborsAfterRemoval(
+      BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
+    CableTopologyCache.invalidateAt(level, pos);
+    super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
   }
 
   @Override

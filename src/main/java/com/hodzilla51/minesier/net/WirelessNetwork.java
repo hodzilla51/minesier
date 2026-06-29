@@ -5,6 +5,7 @@ import com.hodzilla51.minesier.block.TurtleBlockEntity;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -33,6 +34,9 @@ public final class WirelessNetwork {
       return;
     }
     initialized = true;
+    // Free a dimension's modem registry when it unloads mid-session; SERVER_STOPPED is the
+    // catch-all.
+    ServerLevelEvents.UNLOAD.register((server, level) -> MODEMS.remove(level));
     ServerLifecycleEvents.SERVER_STOPPED.register(server -> MODEMS.clear());
   }
 

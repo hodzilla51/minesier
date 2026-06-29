@@ -1,12 +1,14 @@
 package com.hodzilla51.minesier.block;
 
 import com.hodzilla51.minesier.ModContent;
+import com.hodzilla51.minesier.net.CableTopologyCache;
 import com.hodzilla51.minesier.net.MineSIerNet;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
 import com.mojang.serialization.MapCodec;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -124,6 +126,20 @@ public class ComputerBlock extends BaseEntityBlock {
               computer.isRunning(), computer.getProcessName()));
     }
     return InteractionResult.SUCCESS;
+  }
+
+  @Override
+  protected void onPlace(
+      BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+    super.onPlace(state, level, pos, oldState, movedByPiston);
+    CableTopologyCache.invalidateAt(level, pos);
+  }
+
+  @Override
+  protected void affectNeighborsAfterRemoval(
+      BlockState state, ServerLevel level, BlockPos pos, boolean movedByPiston) {
+    CableTopologyCache.invalidateAt(level, pos);
+    super.affectNeighborsAfterRemoval(state, level, pos, movedByPiston);
   }
 
   @Override

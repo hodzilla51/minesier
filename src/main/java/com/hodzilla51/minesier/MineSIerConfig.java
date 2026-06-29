@@ -18,6 +18,7 @@ public final class MineSIerConfig {
   public static long maxCallbackInstructions = 100_000L;
   public static int maxNetworkQueuedEvents = 1_024;
   public static int maxNetworkEventsPerTick = 4;
+  public static int segmentFramesPerTick = 16;
   public static int maxInboxFrames = 64;
   public static int maxFrameBytes = 4 * 1024;
   public static int maxTranscriptLines = 200;
@@ -46,6 +47,7 @@ public final class MineSIerConfig {
         intValue("maxNetworkQueuedEvents", maxNetworkQueuedEvents, 1, 1_000_000);
     maxNetworkEventsPerTick =
         intValue("maxNetworkEventsPerTick", maxNetworkEventsPerTick, 1, 10_000);
+    segmentFramesPerTick = intValue("segmentFramesPerTick", segmentFramesPerTick, 1, 100_000);
     maxInboxFrames = intValue("maxInboxFrames", maxInboxFrames, 1, 100_000);
     maxFrameBytes = intValue("maxFrameBytes", maxFrameBytes, 1, 1_048_576);
     maxTranscriptLines = intValue("maxTranscriptLines", maxTranscriptLines, 1, 10_000);
