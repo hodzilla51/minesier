@@ -8,9 +8,14 @@ a browser or Node.js.
 ## The engine
 
 Programs run on **Mozilla Rhino 1.8**, embedded inside the Minecraft server and
-executed in interpreted mode. The language is modern (ES2015+ syntax works, see
-[the primer](javascript-primer.md#whats-available)), but the *host environment*
-is intentionally minimal and locked down.
+executed in interpreted mode. The language is modern (most ES2015+ syntax works,
+see [the primer](javascript-primer.md#whats-available)), but the *host
+environment* is intentionally minimal and locked down.
+
+> **Notable gap:** the `async`/`await` keywords are **not supported** and raise
+> a syntax error. The `Promise` object itself works, but for time-based or
+> event-driven flow use [`every`/`after`](#background-timers-every--after) and
+> callbacks (e.g. `nic.onReceive`), not `await`.
 
 ### What is NOT available
 

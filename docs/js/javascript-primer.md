@@ -99,9 +99,10 @@ result) — you read their fields with `.fieldName`.
 
 The JavaScript engine is **Rhino 1.8**, which supports modern syntax: `let`/
 `const`, arrow functions, template literals, destructuring, `Map`/`Set`,
-`Promise`, `JSON.parse`/`JSON.stringify`, and most ES2015+ features. A few
-host-environment things you might expect are **deliberately absent or different**
-(no `console`, no `setTimeout`, no DOM, no network `fetch`). The replacements
-are all in [runtime.md](runtime.md).
+`JSON.parse`/`JSON.stringify`, and most ES2015+ features. The `Promise` object
+is available, but the **`async`/`await` keywords are not supported** — you'll
+get a syntax error. A few host-environment things you might expect are also
+**deliberately absent or different** (no `console`, no `setTimeout`, no DOM, no
+network `fetch`). The replacements are all in [runtime.md](runtime.md).
 
 [mdn-guide]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide
