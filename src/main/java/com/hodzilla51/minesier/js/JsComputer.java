@@ -4,6 +4,7 @@ import com.hodzilla51.minesier.MineSIerConfig;
 import com.hodzilla51.minesier.disk.FileSystemProvider;
 import com.hodzilla51.minesier.net.IpPacket;
 import com.hodzilla51.minesier.net.NetworkFrame;
+import com.hodzilla51.minesier.net.SendResult;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -602,8 +603,8 @@ public final class JsComputer {
   /**
    * A {@link FileSystemProvider} backed by a JavaScript object passed to {@code fs.mount}. The
    * object supplies {@code read(path)}, {@code write(path,data)} and {@code list(path)}; optional
-   * {@code delete}, {@code exists}, {@code mkdir} and {@code listAll} refine behavior. Every call is
-   * dispatched back into the owning VM via {@link #invokeProvider} under the sandbox + budget.
+   * {@code delete}, {@code exists}, {@code mkdir} and {@code listAll} refine behavior. Every call
+   * is dispatched back into the owning VM via {@link #invokeProvider} under the sandbox + budget.
    */
   private final class JsFileSystemProvider implements FileSystemProvider {
     private final Function read;
@@ -688,6 +689,18 @@ public final class JsComputer {
     }
   }
 
+  /**
+   * Maps a {@link SendResult} to the tri-state a program sees: {@code true} delivered, {@code false}
+   * permanently rejected, {@code null} dropped by congestion (retry on a later tick).
+   */
+  private static Object toScriptSendResult(SendResult result) {
+    return switch (result) {
+      case DELIVERED -> Boolean.TRUE;
+      case REJECTED -> Boolean.FALSE;
+      case CONGESTED -> null;
+    };
+  }
+
   /** A method on the {@code net} global; delegates to its block entity's NIC. */
   private final class NetworkFunction extends BaseFunction {
     private final String op;
@@ -706,7 +719,7 @@ public final class JsComputer {
         case "address" -> net.address();
         case "send" ->
             args.length >= 2
-                ? net.send(Context.toString(args[0]), Context.toString(args[1]))
+                ? toScriptSendResult(net.send(Context.toString(args[0]), Context.toString(args[1])))
                 : Boolean.FALSE;
         case "receive" -> toScriptFrame(cx, scope, net.receive());
         case "nic" ->
@@ -774,12 +787,13 @@ public final class JsComputer {
         case "address" -> net.address(interfaceName);
         case "send" ->
             args.length >= 2
-                ? net.send(interfaceName, Context.toString(args[0]), Context.toString(args[1]))
+                ? toScriptSendResult(
+                    net.send(interfaceName, Context.toString(args[0]), Context.toString(args[1])))
                 : Boolean.FALSE;
         case "receive" -> toScriptFrame(cx, scope, net.receive(interfaceName));
         case "forward" ->
             args.length >= 1 && args[0] instanceof Scriptable frame
-                ? net.forward(interfaceName, fromScriptFrame(frame))
+                ? toScriptSendResult(net.forward(interfaceName, fromScriptFrame(frame)))
                 : Boolean.FALSE;
         case "setPromiscuous" ->
             args.length >= 1

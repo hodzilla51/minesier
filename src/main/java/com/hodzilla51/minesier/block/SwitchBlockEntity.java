@@ -4,6 +4,7 @@ import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkManager;
+import com.hodzilla51.minesier.net.SendResult;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -120,7 +121,7 @@ public class SwitchBlockEntity extends BlockEntity implements AccessControlledBl
   }
 
   private void send(ServerLevel serverLevel, Direction egress, NetworkFrame frame) {
-    if (CableNetwork.send(serverLevel, worldPosition, egress, frame)) {
+    if (CableNetwork.send(serverLevel, worldPosition, egress, frame) == SendResult.DELIVERED) {
       txFrames[egress.ordinal()]++;
     }
   }

@@ -10,6 +10,7 @@ import com.hodzilla51.minesier.net.CableNetwork;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.NetworkManager;
+import com.hodzilla51.minesier.net.SendResult;
 import com.hodzilla51.minesier.net.WirelessNetwork;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,13 +23,13 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
@@ -181,11 +182,11 @@ public class ComputerBlockEntity extends BlockEntity
   /**
    * Emits a frame on a face: wireless if a modem is attached there, otherwise the cable segment.
    */
-  private boolean emit(ServerLevel serverLevel, Direction face, NetworkFrame frame) {
+  private SendResult emit(ServerLevel serverLevel, Direction face, NetworkFrame frame) {
     BlockPos adjacent = worldPosition.relative(face);
     if (serverLevel.getBlockState(adjacent).is(ModContent.WIRELESS_MODEM_BLOCK)) {
       WirelessNetwork.deliver(serverLevel, adjacent, frame);
-      return true;
+      return SendResult.DELIVERED;
     }
     return CableNetwork.send(serverLevel, worldPosition, face, frame);
   }
@@ -303,8 +304,8 @@ public class ComputerBlockEntity extends BlockEntity
   }
 
   /**
-   * A short human-readable name for the current process (first non-blank line of its source,
-   * capped at 40 chars), or an empty string when nothing is running.
+   * A short human-readable name for the current process (first non-blank line of its source, capped
+   * at 40 chars), or an empty string when nothing is running.
    */
   public String getProcessName() {
     if (!computer.hasTimers() || residentSource.isEmpty()) return "";
@@ -447,7 +448,7 @@ public class ComputerBlockEntity extends BlockEntity
     }
 
     @Override
-    public boolean send(String destination, String data) {
+    public SendResult send(String destination, String data) {
       return send(legacyFace(), destination, data);
     }
 
@@ -463,17 +464,17 @@ public class ComputerBlockEntity extends BlockEntity
     }
 
     @Override
-    public boolean send(String interfaceName, String destination, String data) {
+    public SendResult send(String interfaceName, String destination, String data) {
       Direction face = parseFace(interfaceName);
-      return face != null && send(face, destination, data);
+      return face == null ? SendResult.REJECTED : send(face, destination, data);
     }
 
-    private boolean send(Direction face, String destination, String data) {
+    private SendResult send(Direction face, String destination, String data) {
       if (!(level instanceof ServerLevel serverLevel)
           || destination.isBlank()
           || data.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
               > MineSIerConfig.maxFrameBytes) {
-        return false;
+        return SendResult.REJECTED;
       }
       return emit(serverLevel, face, new NetworkFrame(addressFor(face), destination, data));
     }
@@ -485,19 +486,19 @@ public class ComputerBlockEntity extends BlockEntity
     }
 
     @Override
-    public boolean forward(String interfaceName, NetworkFrame frame) {
+    public SendResult forward(String interfaceName, NetworkFrame frame) {
       Direction face = parseFace(interfaceName);
       if (!(level instanceof ServerLevel serverLevel)
           || face == null
           || frame.destination().isBlank()
           || frame.data().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
               > MineSIerConfig.maxFrameBytes) {
-        return false;
+        return SendResult.REJECTED;
       }
       // Advance one hop; drop at the limit so a player-built switch can't loop forever either.
       NetworkFrame forwarded = frame.nextHop();
       if (forwarded == null) {
-        return false;
+        return SendResult.REJECTED;
       }
       return emit(serverLevel, face, forwarded);
     }

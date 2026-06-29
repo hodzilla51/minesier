@@ -22,17 +22,23 @@ public final class CableNetwork {
   private CableNetwork() {}
 
   /**
-   * @return whether a cable segment was attached to the source NIC.
+   * Offers a frame to the cable segment attached to {@code sourceFace}.
+   *
+   * @return {@link SendResult#REJECTED} when no cable is attached, {@link SendResult#CONGESTED} when
+   *     the segment's per-tick bandwidth budget is exhausted, or {@link SendResult#DELIVERED} once
+   *     the frame has been offered to every NIC on the segment.
    */
-  public static boolean send(
+  public static SendResult send(
       ServerLevel level, BlockPos source, Direction sourceFace, NetworkFrame frame) {
     BlockPos firstCable = source.relative(sourceFace);
     if (!level.hasChunkAt(firstCable) || !isCable(level.getBlockState(firstCable))) {
-      return false;
+      return SendResult.REJECTED;
     }
 
     SegmentSnapshot snapshot = CableTopologyCache.getOrBuild(level, firstCable);
-    if (!snapshot.tryConsume(level.getGameTime())) return false;
+    if (!snapshot.tryConsume(level.getGameTime())) {
+      return SendResult.CONGESTED;
+    }
     for (NicEndpoint nic : snapshot.nics()) {
       if (!level.hasChunkAt(nic.pos())) continue;
       BlockState state = level.getBlockState(nic.pos());
@@ -47,7 +53,7 @@ public final class CableNetwork {
         networkSwitch.offerFrame(nic.face(), frame);
       }
     }
-    return true;
+    return SendResult.DELIVERED;
   }
 
   private static boolean isCable(BlockState state) {
