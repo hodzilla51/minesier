@@ -33,6 +33,8 @@ public class MonitorBlockEntity extends BlockEntity {
   public static final int COLUMNS = 26;
 
   private static final String KEY_LINES = "Lines";
+  private static final String KEY_VERSION = "v"; // NBT schema version; absent (0) = pre-versioning
+  private static final int SCHEMA_VERSION = 1;
 
   private final List<String> lines = new ArrayList<>();
 
@@ -92,6 +94,7 @@ public class MonitorBlockEntity extends BlockEntity {
   @Override
   protected void loadAdditional(ValueInput in) {
     super.loadAdditional(in);
+    // KEY_VERSION (absent == 0, legacy) anchors future format migrations; nothing to migrate today.
     lines.clear();
     String saved = in.getStringOr(KEY_LINES, "");
     if (!saved.isEmpty()) {
@@ -104,6 +107,7 @@ public class MonitorBlockEntity extends BlockEntity {
   @Override
   protected void saveAdditional(ValueOutput out) {
     super.saveAdditional(out);
+    out.putInt(KEY_VERSION, SCHEMA_VERSION);
     out.putString(KEY_LINES, String.join("\n", lines));
   }
 

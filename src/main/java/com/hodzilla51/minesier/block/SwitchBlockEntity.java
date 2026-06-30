@@ -26,6 +26,8 @@ public class SwitchBlockEntity extends BlockEntity implements AccessControlledBl
   private static final String KEY_PASSWORD_SALT = "PasswordSalt";
   private static final String KEY_PASSWORD_HASH = "PasswordHash";
   private static final String KEY_PUBLIC_ACCESS = "PublicAccess"; // legacy owner/public migration
+  private static final String KEY_VERSION = "v"; // NBT schema version; absent (0) = pre-versioning
+  private static final int SCHEMA_VERSION = 1;
   private final long[] rxFrames = new long[Direction.values().length];
   private final long[] txFrames = new long[Direction.values().length];
   private final Map<String, MacEntry> macTable =
@@ -177,6 +179,7 @@ public class SwitchBlockEntity extends BlockEntity implements AccessControlledBl
   @Override
   protected void loadAdditional(ValueInput in) {
     super.loadAdditional(in);
+    // KEY_VERSION (absent == 0, legacy) anchors future format migrations; nothing to migrate today.
     this.accessMode = in.getStringOr(KEY_ACCESS_MODE, "");
     this.passwordSalt = in.getStringOr(KEY_PASSWORD_SALT, "");
     this.passwordHash = in.getStringOr(KEY_PASSWORD_HASH, "");
@@ -191,6 +194,7 @@ public class SwitchBlockEntity extends BlockEntity implements AccessControlledBl
   @Override
   protected void saveAdditional(ValueOutput out) {
     super.saveAdditional(out);
+    out.putInt(KEY_VERSION, SCHEMA_VERSION);
     out.putString(KEY_ACCESS_MODE, accessMode);
     out.putString(KEY_PASSWORD_SALT, passwordSalt);
     out.putString(KEY_PASSWORD_HASH, passwordHash);

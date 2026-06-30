@@ -162,6 +162,13 @@ public final class TurtleManager {
         }
       }
       flushOutput(r, true);
+      // Flush dup-critical live state (fuel/inventory/equipment/slot) onto the current-position BE
+      // every tick, so an autosave or crash mid-program can't desync persisted state from the
+      // turtle's already-persisted physical moves (which would duplicate fuel/items on reload).
+      if (r.level.getBlockEntity(r.world.pos()) instanceof TurtleBlockEntity cur) {
+        cur.syncLiveState(
+            r.world.fuel(), r.world.inventory(), r.world.equipment(), r.world.selectedSlot());
+      }
       r.ticks++;
       // The program-tick budget bounds the FOREGROUND program only. A resident daemon runs
       // indefinitely; each callback is separately bounded by the instruction budget.
