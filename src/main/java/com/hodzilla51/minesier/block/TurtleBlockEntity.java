@@ -230,12 +230,15 @@ public class TurtleBlockEntity extends BlockEntity
   /**
    * Per-tick flush of dup-critical live state from a running program onto the turtle's
    * current-position block entity. Without this, a world autosave (or a crash) mid-program saves
-   * stale BE state while the turtle's physical moves/blocks are already persisted — letting fuel and
-   * items duplicate on reload. Transcript is intentionally left to {@link #applyResult}/{@link
+   * stale BE state while the turtle's physical moves/blocks are already persisted — letting fuel
+   * and items duplicate on reload. Transcript is intentionally left to {@link #applyResult}/{@link
    * #appendNetworkOutput} (its mid-run loss is cosmetic, not a dupe).
    */
   public void syncLiveState(
-      int fuel, NonNullList<ItemStack> inventory, NonNullList<ItemStack> equipment, int selectedSlot) {
+      int fuel,
+      NonNullList<ItemStack> inventory,
+      NonNullList<ItemStack> equipment,
+      int selectedSlot) {
     this.fuel = fuel;
     this.inventory = copyInventory(inventory);
     this.equipment = copyEquipment(equipment);
