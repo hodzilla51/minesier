@@ -48,6 +48,23 @@ public final class JsComputer {
   /** Optional live subscriber for newly printed transcript lines. */
   private Consumer<String> outputListener;
 
+  /**
+   * Runs a callback job on the thread that owns this VM's scope. Default: inline on the calling
+   * thread (the computer, whose VM is server-thread-only). A worker-thread owner (turtle) swaps in
+   * an executor that posts the job to its single runner thread, so timer/listener callbacks never
+   * run JS concurrently with the foreground program or each other.
+   */
+  public interface JsExecutor {
+    void execute(Runnable job);
+  }
+
+  private volatile JsExecutor executor = Runnable::run;
+
+  /** Handle representing "a JS job is currently executing" — makes the VM busy, never resident. */
+  private LivenessRegistry.RuntimeHandle actionRunner;
+
+  private int foregroundDepth;
+
   /** Turtle actions for the {@code turtle} global; null on a plain (non-turtle) computer. */
   private TurtleApi turtle;
 
@@ -114,12 +131,42 @@ public final class JsComputer {
     this.outputListener = outputListener;
   }
 
+  /** Routes callback jobs to the thread that owns this VM's scope (default: inline). */
+  public void setExecutor(JsExecutor executor) {
+    this.executor = executor == null ? Runnable::run : executor;
+  }
+
+  /**
+   * Marks the start of a JS job executing on the runner (the foreground program, or one resident
+   * callback). While any job is executing the VM holds an ACTION_RUNNER handle, so it reads as
+   * busy/alive even with no resident timers or listeners. Called on the runner thread only;
+   * begin/end nest via a depth count so exactly one handle is held.
+   */
+  public void beginForegroundJob() {
+    if (foregroundDepth++ == 0) {
+      actionRunner = new ActionRunnerHandle();
+      registry.add(actionRunner);
+    }
+  }
+
+  /** Marks the end of a JS job; drops the ACTION_RUNNER handle when the outermost job returns. */
+  public void endForegroundJob() {
+    if (--foregroundDepth == 0 && actionRunner != null) {
+      registry.remove(actionRunner);
+      actionRunner = null;
+    }
+  }
+
   /**
    * Disposes every live handle owned by this VM — timers and network receive listeners — folding
    * any running daemon. Called when stopping a resident program and when the owner is removed.
    * Deliberately does <em>not</em> touch the module graph (see {@link #resetForTopLevelRun()}).
+   *
+   * <p>Not {@code synchronized(this)}: the registry guards itself, and a worker-thread VM (turtle)
+   * may hold the VM monitor across a blocking server hop, so the server thread must be able to stop
+   * it without contending for that monitor.
    */
-  public synchronized void stopAllHandles() {
+  public void stopAllHandles() {
     registry.stopAllHandles();
   }
 
@@ -132,52 +179,73 @@ public final class JsComputer {
     moduleCache.clear();
   }
 
-  /** True when any handle is live — a resident daemon OR a busy foreground runner. */
-  public synchronized boolean isAlive() {
+  /**
+   * True when any handle is live — a resident daemon OR a busy foreground runner. Registry-guarded,
+   * so the server thread can read it while a worker-thread VM holds the VM monitor.
+   */
+  public boolean isAlive() {
     return registry.isAlive();
   }
 
   /** True when a resident-source handle (timer or listener) keeps this VM running in background. */
-  public synchronized boolean isResident() {
+  public boolean isResident() {
     return registry.isResident();
   }
 
   /** True when a live timer exists, so the owner's per-tick drain is worth running. */
-  public synchronized boolean hasTickDrivenWork() {
+  public boolean hasTickDrivenWork() {
     return registry.hasTickDrivenWork();
   }
 
   /**
-   * Server tick: fires every timer whose countdown has elapsed, re-arming repeating ones and
-   * dropping one-shots. Returns whatever the callbacks printed (for the transcript).
+   * Advances every timer's countdown by one tick and returns the handles that fell due, marking
+   * each "pending" so it isn't collected again before {@link #fireTimer} re-arms or drops it.
+   *
+   * <p>No JS runs here and the only state touched is registry/handle counters, so this is safe on
+   * any thread (the server tick for a worker-thread turtle VM) — firing the callbacks (which does
+   * run JS) is the separate {@link #fireTimer} step, run on the VM's own execution thread.
    */
-  public synchronized List<String> drainDueTimers() {
-    // Snapshot (outside the registry lock) so a callback that registers a new timer doesn't fire it
-    // this same tick.
-    List<LivenessRegistry.RuntimeHandle> snapshot = registry.snapshot(LivenessRegistry.Kind.TIMER);
-    if (snapshot.isEmpty()) {
-      return List.of();
-    }
-    List<TimerHandle> due = new ArrayList<>();
-    for (LivenessRegistry.RuntimeHandle handle : snapshot) {
+  public List<Object> collectDueTimers() {
+    List<Object> due = new ArrayList<>();
+    for (LivenessRegistry.RuntimeHandle handle : registry.snapshot(LivenessRegistry.Kind.TIMER)) {
       TimerHandle timer = (TimerHandle) handle;
-      if (timer.tickDown()) {
+      if (!timer.pending && timer.tickDown()) {
+        timer.pending = true;
         due.add(timer);
       }
     }
-    List<String> out = new ArrayList<>();
-    for (TimerHandle timer : due) {
-      try {
-        out.addAll(invokeBounded(timer.fn, null));
-      } finally {
-        // Unref one-shots AFTER the callback. A callback that arms a new handle keeps the ref count
-        // above zero, so the VM never momentarily reads as idle mid-drain.
-        if (timer.once) {
-          registry.remove(timer);
-        } else {
-          timer.rearm();
-        }
+    return due;
+  }
+
+  /**
+   * Fires one due timer (from {@link #collectDueTimers}) on this VM's scope, then re-arms a
+   * repeating timer or unrefs a one-shot. Runs JS, so it must be called on the VM's execution
+   * thread. Returns whatever the callback printed.
+   */
+  public synchronized List<String> fireTimer(Object dueTimer) {
+    TimerHandle timer = (TimerHandle) dueTimer;
+    try {
+      return invokeBounded(timer.fn, null);
+    } finally {
+      // Re-arm / unref AFTER the callback so a callback that arms a new handle never lets the ref
+      // count touch zero (the VM must not momentarily read as idle mid-drain).
+      if (timer.once) {
+        registry.remove(timer);
+      } else {
+        timer.rearm();
+        timer.pending = false;
       }
+    }
+  }
+
+  /**
+   * Convenience for a single-threaded owner (the computer's server tick): collect due timers and
+   * fire them back-to-back on the calling thread. Returns whatever the callbacks printed.
+   */
+  public List<String> drainDueTimers() {
+    List<String> out = new ArrayList<>();
+    for (Object due : collectDueTimers()) {
+      out.addAll(fireTimer(due));
     }
     return out;
   }
@@ -201,7 +269,10 @@ public final class JsComputer {
       return false;
     }
     disposeReceiveHandles(interfaceName);
-    NetworkListener listener = frame -> invokeReceiveHandler(callback, frame);
+    // The frame arrives on the server thread; hand it to the VM's executor so the JS callback runs
+    // on the thread that owns the scope (inline for a computer, the runner for a turtle).
+    NetworkListener listener =
+        frame -> executor.execute(() -> invokeReceiveHandler(callback, frame));
     if (!net.setReceiveListener(interfaceName, listener)) {
       return false;
     }
@@ -233,8 +304,11 @@ public final class JsComputer {
   private synchronized void invokeReceiveHandler(Function handler, NetworkFrame frame) {
     List<String> out =
         invokeBounded(handler, (cx, sc) -> new Object[] {receiveFrameObject(cx, sc, frame)});
+    // invokeBounded already streamed each line to a live outputListener (the turtle runner's
+    // transcript pump); only push to the owner's transcript directly when nobody is streaming, so a
+    // streaming owner doesn't double-record the lines.
     NetworkApi net = network;
-    if (net != null) {
+    if (net != null && outputListener == null) {
       net.reportOutput(out);
     }
   }
@@ -1013,6 +1087,14 @@ public final class JsComputer {
     final boolean once;
     int remaining;
 
+    /**
+     * Set by {@link #collectDueTimers} (server thread) when this timer falls due, cleared by {@link
+     * #fireTimer} (runner thread) after it re-arms. Stops a due-but-not-yet-fired timer from being
+     * collected again on the next tick. Volatile so the cross-thread set/clear is visible — and it
+     * doubles as the happens-before edge that publishes {@code remaining} after a re-arm.
+     */
+    volatile boolean pending;
+
     TimerHandle(int interval, Function fn, boolean once) {
       this.interval = interval;
       this.fn = fn;
@@ -1065,6 +1147,23 @@ public final class JsComputer {
     public void dispose() {
       // Identity-keyed: clears the NIC slot only if this listener is still the current one.
       network.clearReceiveListener(interfaceName, listener);
+    }
+  }
+
+  /**
+   * Represents a JS job actively executing on the runner (foreground program or a resident
+   * callback). Busy-only: keeps the VM alive while it runs but never marks it resident. No external
+   * state, so disposal is just removal from the registry.
+   */
+  private static final class ActionRunnerHandle implements LivenessRegistry.RuntimeHandle {
+    @Override
+    public LivenessRegistry.Kind kind() {
+      return LivenessRegistry.Kind.ACTION_RUNNER;
+    }
+
+    @Override
+    public void dispose() {
+      // No external resource.
     }
   }
 

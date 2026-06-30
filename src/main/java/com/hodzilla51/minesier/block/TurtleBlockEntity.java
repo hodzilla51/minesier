@@ -50,6 +50,8 @@ public class TurtleBlockEntity extends BlockEntity
   private static final String KEY_PASSWORD_SALT = "PasswordSalt";
   private static final String KEY_PASSWORD_HASH = "PasswordHash";
   private static final String KEY_PUBLIC_ACCESS = "PublicAccess"; // legacy owner/public migration
+  private static final String KEY_VERSION = "v"; // NBT schema version; absent (0) = pre-versioning
+  private static final int SCHEMA_VERSION = 1;
   private static final int INVENTORY_SIZE = 16;
   public static final int EQUIPMENT_SIZE = 3;
   public static final int EQUIPMENT_FOOT = 0;
@@ -225,6 +227,25 @@ public class TurtleBlockEntity extends BlockEntity
     return sl.getServer().getWorldPath(LevelResource.ROOT);
   }
 
+  /**
+   * Per-tick flush of dup-critical live state from a running program onto the turtle's
+   * current-position block entity. Without this, a world autosave (or a crash) mid-program saves
+   * stale BE state while the turtle's physical moves/blocks are already persisted — letting fuel
+   * and items duplicate on reload. Transcript is intentionally left to {@link #applyResult}/{@link
+   * #appendNetworkOutput} (its mid-run loss is cosmetic, not a dupe).
+   */
+  public void syncLiveState(
+      int fuel,
+      NonNullList<ItemStack> inventory,
+      NonNullList<ItemStack> equipment,
+      int selectedSlot) {
+    this.fuel = fuel;
+    this.inventory = copyInventory(inventory);
+    this.equipment = copyEquipment(equipment);
+    this.selectedSlot = selectedSlot;
+    setChanged();
+  }
+
   /** Lands a finished program's state onto this (the turtle's final-position) block entity. */
   public void applyResult(
       JsComputer vm,
@@ -256,6 +277,8 @@ public class TurtleBlockEntity extends BlockEntity
   @Override
   protected void loadAdditional(ValueInput in) {
     super.loadAdditional(in);
+    // KEY_VERSION (absent == 0, legacy) anchors future format migrations; all fields below default
+    // gracefully so there is nothing to migrate today.
     String saved = in.getStringOr(KEY_TRANSCRIPT, WELCOME);
     transcript.clear();
     for (String line : saved.split("\n", -1)) {
@@ -286,6 +309,7 @@ public class TurtleBlockEntity extends BlockEntity
   @Override
   protected void saveAdditional(ValueOutput out) {
     super.saveAdditional(out);
+    out.putInt(KEY_VERSION, SCHEMA_VERSION);
     out.putString(KEY_TRANSCRIPT, getTranscript());
     out.putInt(KEY_FUEL, fuel);
     out.putInt(KEY_SELECTED, selectedSlot);
@@ -314,6 +338,14 @@ public class TurtleBlockEntity extends BlockEntity
   private static NonNullList<ItemStack> copyEquipment(NonNullList<ItemStack> source) {
     NonNullList<ItemStack> copy = NonNullList.withSize(EQUIPMENT_SIZE, ItemStack.EMPTY);
     for (int i = 0; i < Math.min(EQUIPMENT_SIZE, source.size()); i++) {
+      copy.set(i, source.get(i).copy());
+    }
+    return copy;
+  }
+
+  private static NonNullList<ItemStack> copyInventory(NonNullList<ItemStack> source) {
+    NonNullList<ItemStack> copy = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
+    for (int i = 0; i < Math.min(INVENTORY_SIZE, source.size()); i++) {
       copy.set(i, source.get(i).copy());
     }
     return copy;

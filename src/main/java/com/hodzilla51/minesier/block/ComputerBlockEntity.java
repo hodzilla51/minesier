@@ -53,6 +53,8 @@ public class ComputerBlockEntity extends BlockEntity
   private static final String KEY_PASSWORD_SALT = "PasswordSalt";
   private static final String KEY_PASSWORD_HASH = "PasswordHash";
   private static final String KEY_PUBLIC_ACCESS = "PublicAccess"; // legacy owner/public migration
+  private static final String KEY_VERSION = "v"; // NBT schema version; absent (0) = pre-versioning
+  private static final int SCHEMA_VERSION = 1;
   private static final String WELCOME =
       String.join(
           "\n",
@@ -381,6 +383,9 @@ public class ComputerBlockEntity extends BlockEntity
   @Override
   protected void loadAdditional(ValueInput in) {
     super.loadAdditional(in);
+    // KEY_VERSION (absent == 0, legacy) is the anchor for future format migrations: branch on
+    // in.getIntOr(KEY_VERSION, 0) here when the schema changes. All fields below already default
+    // gracefully, so today there is nothing to migrate.
     String saved = in.getStringOr(KEY_TRANSCRIPT, WELCOME);
     transcript.clear();
     for (String line : saved.split("\n", -1)) {
@@ -413,6 +418,7 @@ public class ComputerBlockEntity extends BlockEntity
   @Override
   protected void saveAdditional(ValueOutput out) {
     super.saveAdditional(out);
+    out.putInt(KEY_VERSION, SCHEMA_VERSION);
     out.putString(KEY_TRANSCRIPT, getTranscript());
     if (!disk.isEmpty()) {
       out.store(KEY_DISK, ItemStack.CODEC, disk);
