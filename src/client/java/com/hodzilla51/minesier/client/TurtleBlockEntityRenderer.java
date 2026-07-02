@@ -297,9 +297,13 @@ public class TurtleBlockEntityRenderer
 
     if (!state.armItem.isEmpty()) {
       poseStack.pushPose();
-      poseStack.translate(0.39, -0.03, 0.25);
-      poseStack.mulPose(Axis.ZP.rotationDegrees(-35f));
-      poseStack.scale(0.24f, 0.24f, 0.24f);
+      // FIXED renders the tool flat (facing +Z) and centered at the origin — predictable to place.
+      // Mount it on the turtle's right, just proud of the front face, and yaw 90 deg so the blade
+      // reads front-on instead of edge-on.
+      poseStack.translate(-0.40, 0.10, 0.1);
+      poseStack.mulPose(Axis.YP.rotationDegrees(270f));
+      poseStack.mulPose(Axis.ZP.rotationDegrees(-80f));
+      poseStack.scale(0.7f, 0.7f, 0.7f);
       state.armItem.submit(poseStack, collector, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0);
       poseStack.popPose();
     }
