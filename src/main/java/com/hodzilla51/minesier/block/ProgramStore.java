@@ -150,28 +150,46 @@ public interface ProgramStore {
 
   // ── File operations ───────────────────────────────────────────────────────
 
-  default boolean saveFile(String fullPath, String text) {
+  /** Writes raw bytes across the VFS. The byte-native counterpart of {@link #saveFile}. */
+  default boolean saveFileBytes(String fullPath, byte[] data) {
     String[] dp = parseDrivePath(fullPath);
     if (dp == null) return false;
     String normalized = DiskStorage.normalizePath(dp[1]);
     if (normalized == null) return false;
     FileSystemProvider provider = providerFor(dp[0]);
-    return provider != null && provider.write(normalized, text);
+    return provider != null && provider.writeBytes(normalized, data);
   }
 
-  default String readFile(String fullPath) {
+  /**
+   * Reads raw bytes across the VFS, or {@code null} if absent. Counterpart of {@link #readFile}.
+   */
+  default byte[] readFileBytes(String fullPath) {
     String[] dp = parseDrivePath(fullPath);
     if (dp == null) return null;
     String normalized = DiskStorage.normalizePath(dp[1]);
     if (normalized == null) return null;
     FileSystemProvider provider = providerFor(dp[0]);
     if (provider == null) return null;
-    String text = provider.read(normalized);
+    byte[] bytes = provider.readBytes(normalized);
     // .js fallback for files saved before the extension requirement
-    if (text == null && !normalized.endsWith(".js")) {
-      text = provider.read(normalized + ".js");
+    if (bytes == null && !normalized.endsWith(".js")) {
+      bytes = provider.readBytes(normalized + ".js");
     }
-    return text;
+    return bytes;
+  }
+
+  default boolean saveFile(String fullPath, String text) {
+    return saveFileBytes(fullPath, com.hodzilla51.minesier.js.Bytes.encodeText(text));
+  }
+
+  /**
+   * Reads a file as UTF-8 text, or {@code null} if absent. Lenient decode (invalid bytes → U+FFFD)
+   * for internal text callers (module loader, terminal); the script-facing {@code fs.read} in
+   * {@link com.hodzilla51.minesier.js.FileSystemApi} decodes strictly so it can flag binary files.
+   */
+  default String readFile(String fullPath) {
+    byte[] bytes = readFileBytes(fullPath);
+    return bytes == null ? null : new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
   }
 
   default boolean deleteFile(String fullPath) {

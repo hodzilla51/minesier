@@ -6,6 +6,7 @@ import com.hodzilla51.minesier.net.IpPacket;
 import com.hodzilla51.minesier.net.NetworkFrame;
 import com.hodzilla51.minesier.net.NetworkListener;
 import com.hodzilla51.minesier.net.SendResult;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.mozilla.javascript.ClassShutter;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.RhinoException;
+import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
@@ -353,11 +355,20 @@ public final class JsComputer {
    * context. Returns {@code null} on any error.
    */
   synchronized Object invokeProvider(Function fn, Object[] args) {
+    return invokeProvider(fn, (cx, s) -> args);
+  }
+
+  /**
+   * Variant whose arguments are built from the entered {@link Context} — needed when an argument is
+   * a script object (e.g. a {@code Uint8Array}) that must be allocated inside the active VM.
+   */
+  synchronized Object invokeProvider(
+      Function fn, BiFunction<Context, Scriptable, Object[]> argBuilder) {
     if (fn == null) return null;
     Context current = Context.getCurrentContext();
     if (current != null) {
       try {
-        return fn.call(current, scope, scope, args);
+        return fn.call(current, scope, scope, argBuilder.apply(current, scope));
       } catch (RhinoException | IllegalStateException e) {
         return null;
       }
@@ -371,7 +382,7 @@ public final class JsComputer {
       } catch (SecurityException alreadySet) {
         // Shutter already installed on this (reused) context — fine.
       }
-      return fn.call(cx, scope, scope, args);
+      return fn.call(cx, scope, scope, argBuilder.apply(cx, scope));
     } catch (RhinoException | IllegalStateException e) {
       return null;
     } finally {
@@ -485,7 +496,16 @@ public final class JsComputer {
           ScriptableObject fsObj = (ScriptableObject) cx.newObject(scope);
           for (String op :
               new String[] {
-                "list", "read", "write", "remove", "exists", "mount", "unmount", "mounts"
+                "list",
+                "read",
+                "write",
+                "readBytes",
+                "writeBytes",
+                "remove",
+                "exists",
+                "mount",
+                "unmount",
+                "mounts"
               }) {
             ScriptableObject.putProperty(fsObj, op, new FileSystemFunction(op));
           }
@@ -707,8 +727,8 @@ public final class JsComputer {
       if (fs == null) {
         return switch (op) {
           case "list", "mounts" -> cx.newArray(scope, new Object[0]);
-          case "exists", "write", "remove", "mount", "unmount" -> Boolean.FALSE;
-          default -> null;
+          case "exists", "write", "writeBytes", "remove", "mount", "unmount" -> Boolean.FALSE;
+          default -> null; // read, readBytes → null (nothing to read without a filesystem)
         };
       }
       // Mount management operates on drive names / JS objects, not file paths.
@@ -736,9 +756,31 @@ public final class JsComputer {
           List<String> names = fs.list(path);
           yield cx.newArray(scope, names.toArray(Object[]::new));
         }
-        case "read" -> fs.read(path);
+        case "read" -> {
+          try {
+            yield fs.read(path); // String, or null when the file doesn't exist
+          } catch (BinaryFileException notText) {
+            // Surface a catchable JS error so a script can distinguish binary from missing.
+            throw ScriptRuntime.throwError(cx, scope, notText.getMessage());
+          }
+        }
+        case "readBytes" -> {
+          byte[] data = fs.readBytes(path);
+          yield data == null ? null : Bytes.toUint8Array(cx, scope, data);
+        }
         case "write" ->
             args.length >= 2 ? fs.write(path, Context.toString(args[1])) : Boolean.FALSE;
+        case "writeBytes" -> {
+          if (args.length < 2) {
+            yield Boolean.FALSE;
+          }
+          byte[] data = Bytes.toBytes(args[1]);
+          if (data == null) {
+            throw ScriptRuntime.throwError(
+                cx, scope, "fs.writeBytes: expected a Uint8Array, ArrayBuffer, or byte array");
+          }
+          yield fs.writeBytes(path, data);
+        }
         case "remove" -> fs.remove(path);
         case "exists" -> fs.exists(path);
         default -> null;
@@ -755,6 +797,8 @@ public final class JsComputer {
   private final class JsFileSystemProvider implements FileSystemProvider {
     private final Function read;
     private final Function write;
+    private final Function readBytes;
+    private final Function writeBytes;
     private final Function list;
     private final Function delete;
     private final Function exists;
@@ -764,6 +808,8 @@ public final class JsComputer {
     JsFileSystemProvider(Scriptable obj) {
       this.read = fn(obj, "read");
       this.write = fn(obj, "write");
+      this.readBytes = fn(obj, "readBytes");
+      this.writeBytes = fn(obj, "writeBytes");
       this.list = fn(obj, "list");
       this.delete = fn(obj, "delete");
       this.exists = fn(obj, "exists");
@@ -777,14 +823,24 @@ public final class JsComputer {
     }
 
     @Override
-    public String read(String path) {
+    public byte[] readBytes(String path) {
+      // Prefer a byte-native callback; otherwise bridge through the text callback (UTF-8).
+      if (readBytes != null) {
+        return Bytes.toBytes(invokeProvider(readBytes, new Object[] {path}));
+      }
       Object r = invokeProvider(read, new Object[] {path});
-      return (r == null || Undefined.isUndefined(r)) ? null : Context.toString(r);
+      return (r == null || Undefined.isUndefined(r)) ? null : Bytes.encodeText(Context.toString(r));
     }
 
     @Override
-    public boolean write(String path, String text) {
-      return Context.toBoolean(invokeProvider(write, new Object[] {path, text}));
+    public boolean writeBytes(String path, byte[] data) {
+      if (writeBytes != null) {
+        return Context.toBoolean(
+            invokeProvider(
+                writeBytes, (cx, s) -> new Object[] {path, Bytes.toUint8Array(cx, s, data)}));
+      }
+      return Context.toBoolean(
+          invokeProvider(write, new Object[] {path, new String(data, StandardCharsets.UTF_8)}));
     }
 
     @Override
@@ -797,7 +853,7 @@ public final class JsComputer {
       if (exists != null) {
         return Context.toBoolean(invokeProvider(exists, new Object[] {path}));
       }
-      return read(path) != null;
+      return readBytes(path) != null;
     }
 
     @Override

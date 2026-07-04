@@ -10,9 +10,26 @@ import java.util.List;
 public interface FileSystemApi {
   List<String> list(String path);
 
-  String read(String path);
+  /** Raw bytes of a file, or {@code null} if it doesn't exist. */
+  byte[] readBytes(String path);
 
-  boolean write(String path, String text);
+  /** Writes raw bytes to a file; returns whether it succeeded. */
+  boolean writeBytes(String path, byte[] data);
+
+  /**
+   * Reads a file as UTF-8 text. Returns {@code null} when the file <em>doesn't exist</em>, but
+   * throws {@link BinaryFileException} when the file exists yet isn't valid UTF-8 — so a script can
+   * tell "no such file" (null) apart from "binary file" (exception) instead of both looking empty.
+   */
+  default String read(String path) {
+    byte[] bytes = readBytes(path);
+    return bytes == null ? null : Bytes.decodeTextOrThrow(bytes, path);
+  }
+
+  /** Writes UTF-8 text (unpaired surrogates → U+FFFD, never silent corruption). */
+  default boolean write(String path, String text) {
+    return writeBytes(path, Bytes.encodeText(text));
+  }
 
   boolean remove(String path);
 
