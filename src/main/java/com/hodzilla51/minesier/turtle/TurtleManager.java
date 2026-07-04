@@ -76,13 +76,13 @@ public final class TurtleManager {
           }
 
           @Override
-          public String read(String path) {
-            return be.readFile(path);
+          public byte[] readBytes(String path) {
+            return be.readFileBytes(path);
           }
 
           @Override
-          public boolean write(String path, String text) {
-            return be.saveFile(path, text);
+          public boolean writeBytes(String path, byte[] data) {
+            return be.saveFileBytes(path, data);
           }
 
           @Override

@@ -1,5 +1,6 @@
 package com.hodzilla51.minesier.disk;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
@@ -16,9 +17,26 @@ import java.util.Set;
  * share, RAM disk, computed/virtual files, …).
  */
 public interface FileSystemProvider {
-  String read(String path);
+  /** Reads a file's raw bytes, or {@code null} if it doesn't exist (or can't be read). */
+  byte[] readBytes(String path);
 
-  boolean write(String path, String text);
+  /** Writes raw bytes to a file, creating parents; returns whether it succeeded. */
+  boolean writeBytes(String path, byte[] data);
+
+  /**
+   * Reads a file as UTF-8 text, or {@code null} if it doesn't exist. Convenience over {@link
+   * #readBytes}; decoding is lenient (invalid bytes become U+FFFD). Callers that must distinguish
+   * binary content from missing files should use {@link #readBytes} and decode strictly themselves.
+   */
+  default String read(String path) {
+    byte[] bytes = readBytes(path);
+    return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
+  }
+
+  /** Writes UTF-8 text to a file. Convenience over {@link #writeBytes}. */
+  default boolean write(String path, String text) {
+    return writeBytes(path, text.getBytes(StandardCharsets.UTF_8));
+  }
 
   boolean delete(String path);
 

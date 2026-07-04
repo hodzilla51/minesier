@@ -626,13 +626,13 @@ public class ComputerBlockEntity extends BlockEntity
     }
 
     @Override
-    public String read(String path) {
-      return readFile(path);
+    public byte[] readBytes(String path) {
+      return readFileBytes(path);
     }
 
     @Override
-    public boolean write(String path, String text) {
-      return saveFile(path, text);
+    public boolean writeBytes(String path, byte[] data) {
+      return saveFileBytes(path, data);
     }
 
     @Override
