@@ -297,6 +297,10 @@ public class ComputerBlockEntity extends BlockEntity
         setChanged();
       }
     }
+    // A callback may have asked to stop its own daemon via proc.stop(); honor it between callbacks.
+    if (computer.consumeStopRequest()) {
+      stopResident();
+    }
   }
 
   /** The full scrollback joined with newlines (for sending to the client). */
@@ -316,10 +320,7 @@ public class ComputerBlockEntity extends BlockEntity
    */
   public String getProcessName() {
     if (!computer.isResident() || residentSource.isEmpty()) return "";
-    String line = residentSource.stripLeading();
-    int nl = line.indexOf('\n');
-    String first = nl >= 0 ? line.substring(0, nl).strip() : line.strip();
-    return first.length() > 40 ? first.substring(0, 40) + "…" : first;
+    return com.hodzilla51.minesier.js.ProcessName.describe(residentSource);
   }
 
   /**
