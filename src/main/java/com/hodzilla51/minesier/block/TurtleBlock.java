@@ -3,6 +3,7 @@ package com.hodzilla51.minesier.block;
 import com.hodzilla51.minesier.ModContent;
 import com.hodzilla51.minesier.net.CableTopologyCache;
 import com.hodzilla51.minesier.net.TerminalScreenS2C;
+import com.hodzilla51.minesier.turtle.TurtleManager;
 import com.mojang.serialization.MapCodec;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
@@ -101,6 +102,9 @@ public class TurtleBlock extends BaseEntityBlock {
   public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
     // Spill the turtle's inventory when a player breaks it (block hops never call this).
     if (!level.isClientSide() && level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle) {
+      // Kill any running program/daemon first, or it would resurrect the turtle by placing a block
+      // on its next move (and leave a stale restart recipe).
+      TurtleManager.onBlockBroken(level, pos);
       Containers.dropContents(level, pos, turtle.getInventory());
       Containers.dropContents(level, pos, turtle.getEquipment());
       if (!turtle.getDisk().isEmpty()) {

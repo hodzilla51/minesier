@@ -187,6 +187,18 @@ public class TurtleBlockEntity extends BlockEntity
     }
   }
 
+  /**
+   * Replaces the persisted transcript with a running program's live scrollback. Called each tick a
+   * program runs so its log survives reload/chunk-unload (a resident daemon may never reach {@link
+   * #applyResult}). Save-only: {@code setChanged} marks the chunk dirty without pushing to clients
+   * (the terminal streams via {@code TerminalScreenS2C}).
+   */
+  public void setLiveTranscript(List<String> lines) {
+    this.transcript.clear();
+    this.transcript.addAll(lines);
+    setChanged();
+  }
+
   /** Appends output produced by a network receive callback after the foreground program ended. */
   public void appendNetworkOutput(List<String> lines) {
     transcript.addAll(lines);
