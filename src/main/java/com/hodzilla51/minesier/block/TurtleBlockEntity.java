@@ -20,6 +20,7 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -49,6 +50,7 @@ public class TurtleBlockEntity extends BlockEntity
   private static final String KEY_ACCESS_MODE = "AccessMode";
   private static final String KEY_PASSWORD_SALT = "PasswordSalt";
   private static final String KEY_PASSWORD_HASH = "PasswordHash";
+  private static final String KEY_RESIDENT = "ResidentSource";
   private static final String KEY_PUBLIC_ACCESS = "PublicAccess"; // legacy owner/public migration
   private static final String KEY_VERSION = "v"; // NBT schema version; absent (0) = pre-versioning
   private static final int SCHEMA_VERSION = 1;
@@ -78,6 +80,17 @@ public class TurtleBlockEntity extends BlockEntity
   private String passwordSalt = "";
   private String passwordHash = "";
   private final Set<java.util.UUID> authorizedPlayers = new HashSet<>();
+
+  /**
+   * The program that established the current resident daemon, persisted so the daemon survives a
+   * world reload / chunk unload, mirroring {@link ComputerBlockEntity}. Empty when nothing resident
+   * is running. Unlike the computer, the turtle's daemon runs on the {@code TurtleManager}'s worker
+   * runner, so this field is only the restart recipe: it is written from the running program (via
+   * {@link #syncLiveState}/{@link #applyResult}) and consumed by {@link #serverTick}.
+   */
+  private String residentSource = "";
+
+  private boolean pendingRestart;
 
   public TurtleBlockEntity(BlockPos pos, BlockState state) {
     super(ModContent.TURTLE_BLOCK_ENTITY, pos, state);
@@ -238,11 +251,16 @@ public class TurtleBlockEntity extends BlockEntity
       int fuel,
       NonNullList<ItemStack> inventory,
       NonNullList<ItemStack> equipment,
-      int selectedSlot) {
+      int selectedSlot,
+      String residentSource) {
     this.fuel = fuel;
     this.inventory = copyInventory(inventory);
     this.equipment = copyEquipment(equipment);
     this.selectedSlot = selectedSlot;
+    // The restart recipe (empty until the program becomes resident): kept in step with the physical
+    // state so an autosave/crash mid-program can never persist a daemon that wasn't yet resident
+    // (which would replay a one-shot program on reload) nor drop one that was.
+    this.residentSource = residentSource;
     setChanged();
   }
 
@@ -257,7 +275,8 @@ public class TurtleBlockEntity extends BlockEntity
       String transcript,
       String accessMode,
       String passwordSalt,
-      String passwordHash) {
+      String passwordHash,
+      String residentSource) {
     this.vm = vm;
     this.fuel = fuel;
     this.inventory = inventory;
@@ -271,7 +290,49 @@ public class TurtleBlockEntity extends BlockEntity
     this.accessMode = accessMode;
     this.passwordSalt = passwordSalt;
     this.passwordHash = passwordHash;
+    this.residentSource = residentSource;
     setChanged();
+  }
+
+  /**
+   * Server tick (one per loaded turtle block entity, wired from {@link
+   * com.hodzilla51.minesier.block.TurtleBlock#getTicker}). A trampoline that restarts a persisted
+   * daemon after a reload/chunk-load, then does nothing: a live daemon's timers are driven by
+   * {@link com.hodzilla51.minesier.turtle.TurtleManager#tickAll} on its runner, never here (the
+   * turtle VM's JS must not run on the server thread).
+   */
+  public void serverTick() {
+    if (!pendingRestart) {
+      return;
+    }
+    pendingRestart = false;
+    if (residentSource.isEmpty()
+        || !(level instanceof ServerLevel serverLevel)
+        || com.hodzilla51.minesier.turtle.TurtleManager.isRunning(level, worldPosition)) {
+      return;
+    }
+    com.hodzilla51.minesier.turtle.TurtleManager.restartResident(
+        serverLevel, worldPosition, residentSource);
+  }
+
+  /**
+   * Runs the inserted disk's {@code startup.js} (falling back to {@code D:/startup.js} then legacy
+   * {@code startup}) so slotting a prepared disk auto-boots a daemon, mirroring {@link
+   * ComputerBlockEntity#bootStartup}. The program runs through the {@link
+   * com.hodzilla51.minesier.turtle.TurtleManager} runner (the turtle VM is worker-thread only), so
+   * this only resolves the source and hands it off.
+   */
+  public void bootStartup(ServerPlayer viewer) {
+    if (!(level instanceof ServerLevel serverLevel)) {
+      return;
+    }
+    String source = loadProgram("C:/startup.js");
+    if (source == null) source = loadProgram("D:/startup.js");
+    if (source == null) source = loadProgram("startup");
+    if (source != null && !source.isBlank()) {
+      com.hodzilla51.minesier.turtle.TurtleManager.startProgram(
+          serverLevel, worldPosition, viewer, source, "[startup]");
+    }
   }
 
   @Override
@@ -295,6 +356,9 @@ public class TurtleBlockEntity extends BlockEntity
     this.equipment.set(EQUIPMENT_ARM, in.read(KEY_ARM, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.equipment.set(EQUIPMENT_TOP, in.read(KEY_TOP, ItemStack.CODEC).orElse(ItemStack.EMPTY));
     this.network.setNetworkAddress(in.getStringOr(KEY_ADDRESS, network.getNetworkAddress()));
+    this.residentSource = in.getStringOr(KEY_RESIDENT, "");
+    // A daemon was resident when saved; re-run its source on the first tick after loading.
+    this.pendingRestart = !residentSource.isEmpty();
     this.accessMode = in.getStringOr(KEY_ACCESS_MODE, "");
     this.passwordSalt = in.getStringOr(KEY_PASSWORD_SALT, "");
     this.passwordHash = in.getStringOr(KEY_PASSWORD_HASH, "");
@@ -324,6 +388,9 @@ public class TurtleBlockEntity extends BlockEntity
     storeEquipment(out, KEY_ARM, equipment.get(EQUIPMENT_ARM));
     storeEquipment(out, KEY_TOP, equipment.get(EQUIPMENT_TOP));
     out.putString(KEY_ADDRESS, network.getNetworkAddress());
+    if (!residentSource.isEmpty()) {
+      out.putString(KEY_RESIDENT, residentSource);
+    }
     out.putString(KEY_ACCESS_MODE, accessMode);
     out.putString(KEY_PASSWORD_SALT, passwordSalt);
     out.putString(KEY_PASSWORD_HASH, passwordHash);
@@ -358,6 +425,13 @@ public class TurtleBlockEntity extends BlockEntity
 
   @Override
   public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-    return saveWithoutMetadata(registries);
+    // The turtle BE syncs its full NBT to clients (its renderer needs equipment/facing). Strip
+    // server-only secrets before they leave the server: the resident source is the player's code,
+    // and the password salt/hash gate access — none of it belongs on the client.
+    CompoundTag tag = saveWithoutMetadata(registries);
+    tag.remove(KEY_RESIDENT);
+    tag.remove(KEY_PASSWORD_SALT);
+    tag.remove(KEY_PASSWORD_HASH);
+    return tag;
   }
 }

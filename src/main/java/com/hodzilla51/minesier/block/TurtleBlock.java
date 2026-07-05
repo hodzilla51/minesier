@@ -20,6 +20,8 @@ import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -72,6 +74,16 @@ public class TurtleBlock extends BaseEntityBlock {
   }
 
   @Override
+  public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
+      Level level, BlockState state, BlockEntityType<T> type) {
+    if (level.isClientSide()) {
+      return null; // resident daemons restart server-side only
+    }
+    return createTickerHelper(
+        type, ModContent.TURTLE_BLOCK_ENTITY, (lvl, pos, st, be) -> be.serverTick());
+  }
+
+  @Override
   protected void onPlace(
       BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
     super.onPlace(state, level, pos, oldState, movedByPiston);
@@ -117,6 +129,8 @@ public class TurtleBlock extends BaseEntityBlock {
         }
         turtle.setDisk(stack.copyWithCount(1));
         stack.shrink(1);
+        // Slotting a disk boots its startup.js (if any), so a daemon can auto-run.
+        turtle.bootStartup(serverPlayer);
       }
       return InteractionResult.SUCCESS;
     }
