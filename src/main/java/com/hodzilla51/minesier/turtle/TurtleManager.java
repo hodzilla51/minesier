@@ -277,6 +277,10 @@ public final class TurtleManager {
             r.world.equipment(),
             r.world.selectedSlot(),
             r.vm.isResident() ? r.source : "");
+        // Persist the running log too, so a resident daemon's scrollback survives reload/chunk-
+        // unload (it may never reach applyResult, and lives only in memory otherwise). Every tick,
+        // so it stays correct across block hops (the new-position BE starts with only its welcome).
+        cur.setLiveTranscript(r.baseTranscript);
       }
       r.ticks++;
       if (!r.brain.isForegroundDone()) {
@@ -343,6 +347,24 @@ public final class TurtleManager {
       r.vm.stopAllHandles(); // drop timers/listeners so the runner's resident loop exits
       r.brain.abort(); // wake + unwind the worker; finish() writes back once it exits
     }
+  }
+
+  /**
+   * Kills the program/daemon on the turtle at {@code pos} because its block is being destroyed (a
+   * player break). Removes the Running immediately with no writeback or restart recipe — unlike a
+   * chunk-unload fold — so the daemon can't resurrect the turtle by placing a block on its next
+   * move. Never called on a block hop (movement uses {@code removeBlock}, not a player break).
+   */
+  public static void onBlockBroken(Level level, BlockPos pos) {
+    for (Iterator<Running> it = ACTIVE.iterator(); it.hasNext(); ) {
+      Running r = it.next();
+      if (r.level == level && r.world.pos().equals(pos)) {
+        r.vm.stopAllHandles();
+        r.brain.abort();
+        it.remove();
+      }
+    }
+    PENDING.removeIf(p -> p.level == level && p.pos.equals(pos));
   }
 
   /** Folds every daemon whose turtle sits in the unloading chunk, persisting its restart recipe. */
@@ -419,13 +441,14 @@ public final class TurtleManager {
 
   private static void flushOutput(Running r, boolean notifyClient) {
     List<String> out = r.brain.drainOutput();
-    if (!out.isEmpty()) {
-      r.baseTranscript.addAll(out);
-      while (r.baseTranscript.size() > MineSIerConfig.maxTranscriptLines) {
-        r.baseTranscript.remove(0);
-      }
+    if (out.isEmpty()) {
+      return;
     }
-    if (!out.isEmpty() && notifyClient && r.viewer != null) {
+    r.baseTranscript.addAll(out);
+    while (r.baseTranscript.size() > MineSIerConfig.maxTranscriptLines) {
+      r.baseTranscript.remove(0);
+    }
+    if (notifyClient && r.viewer != null) {
       ServerPlayNetworking.send(
           r.viewer,
           new TerminalScreenS2C(r.world.pos(), String.join("\n", r.baseTranscript), false));
