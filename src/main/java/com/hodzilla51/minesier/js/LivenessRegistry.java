@@ -100,6 +100,22 @@ final class LivenessRegistry {
     }
   }
 
+  /**
+   * True when a busy foreground runner (ACTION_RUNNER) handle is live — a JS job is currently
+   * executing. Distinct from {@link #isResident()}: a daemon idling between callbacks is resident
+   * but not busy, so a new top-level run can fold it instead of being refused.
+   */
+  boolean isBusy() {
+    synchronized (lock) {
+      for (RuntimeHandle handle : handles) {
+        if (handle.kind() == Kind.ACTION_RUNNER) {
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+
   /** True when a TIMER handle exists; an O(1) early-return guard for the per-tick drain. */
   boolean hasTickDrivenWork() {
     synchronized (lock) {

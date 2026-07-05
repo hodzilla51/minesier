@@ -62,6 +62,20 @@ public final class JsComputer {
 
   private volatile JsExecutor executor = Runnable::run;
 
+  /**
+   * Set by {@code proc.stop()} from inside a callback, consumed by the owner (the turtle tick / the
+   * computer server tick) which tears the VM down between callbacks — never mid-callback, which
+   * would unwind the running Rhino frame under its own feet.
+   */
+  private volatile boolean stopRequested;
+
+  /**
+   * Advisory owner label set by {@code proc.claim(owner)} and cleared by {@code proc.resume()}.
+   * Surfaced through {@code proc.status()} so player control code can decide whether to obey a
+   * control frame; the engine enforces nothing here (the minimal #66 control surface).
+   */
+  private volatile String claimedBy = "";
+
   /** Handle representing "a JS job is currently executing" — makes the VM busy, never resident. */
   private LivenessRegistry.RuntimeHandle actionRunner;
 
@@ -194,9 +208,30 @@ public final class JsComputer {
     return registry.isResident();
   }
 
+  /**
+   * True while a JS job (the foreground program or a resident callback) is executing on the runner.
+   * A resident daemon that is merely idling between callbacks is {@link #isResident() resident} but
+   * not busy — a new top-level run may fold it, whereas a busy VM refuses the run.
+   */
+  public boolean isBusy() {
+    return registry.isBusy();
+  }
+
   /** True when a live timer exists, so the owner's per-tick drain is worth running. */
   public boolean hasTickDrivenWork() {
     return registry.hasTickDrivenWork();
+  }
+
+  /**
+   * Returns and clears a pending {@code proc.stop()} request. Called by the owner between callbacks
+   * (turtle tick / computer server tick), never on the callback that requested the stop.
+   */
+  public boolean consumeStopRequest() {
+    if (stopRequested) {
+      stopRequested = false;
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -515,6 +550,12 @@ public final class JsComputer {
         ScriptableObject.putProperty(scope, "every", new TimerRegisterFunction(false));
         ScriptableObject.putProperty(scope, "after", new TimerRegisterFunction(true));
         ScriptableObject.putProperty(scope, "clearTimers", new ClearTimersFunction());
+        // Resident-process control surface (self-directed): stop / claim / resume / status.
+        ScriptableObject procObj = (ScriptableObject) cx.newObject(scope);
+        for (String op : new String[] {"stop", "claim", "resume", "status"}) {
+          ScriptableObject.putProperty(procObj, op, new ProcFunction(op));
+        }
+        ScriptableObject.putProperty(scope, "proc", procObj);
         // CommonJS-style module loading from other programs on the disk.
         ScriptableObject.putProperty(scope, "require", new RequireFunction());
       }
@@ -1251,6 +1292,45 @@ public final class JsComputer {
     public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
       clearAllTimers();
       return Undefined.instance;
+    }
+  }
+
+  /**
+   * The {@code proc} control surface (self-directed lifecycle for #66): {@code proc.stop()}
+   * requests a clean teardown honored by the owner between callbacks, {@code proc.claim(owner)} /
+   * {@code proc.resume()} set/clear an advisory owner label, and {@code proc.status()} reports
+   * resident/busy/claim state. Player code decides how to authenticate and route control frames;
+   * the engine only defines the self-applied effect.
+   */
+  private final class ProcFunction extends BaseFunction {
+    private final String op;
+
+    ProcFunction(String op) {
+      this.op = op;
+    }
+
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+      switch (op) {
+        case "stop":
+          stopRequested = true;
+          return Undefined.instance;
+        case "claim":
+          claimedBy = args.length >= 1 ? Context.toString(args[0]) : "";
+          return Boolean.TRUE;
+        case "resume":
+          claimedBy = "";
+          return Boolean.TRUE;
+        case "status":
+          ScriptableObject status = (ScriptableObject) cx.newObject(scope);
+          ScriptableObject.putProperty(status, "resident", registry.isResident());
+          ScriptableObject.putProperty(status, "busy", registry.isBusy());
+          ScriptableObject.putProperty(status, "claimed", !claimedBy.isEmpty());
+          ScriptableObject.putProperty(status, "claimedBy", claimedBy.isEmpty() ? null : claimedBy);
+          return status;
+        default:
+          return Undefined.instance;
+      }
     }
   }
 

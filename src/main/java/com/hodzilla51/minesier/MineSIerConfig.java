@@ -23,6 +23,7 @@ public final class MineSIerConfig {
   public static int maxFrameBytes = 4 * 1024;
   public static int maxTranscriptLines = 200;
   public static int maxTurtleProgramTicks = 12_000;
+  public static int maxTurtleCallbackTicks = 12_000;
   public static int maxTurtleWaitTicks = 20 * 60;
 
   private MineSIerConfig() {}
@@ -53,6 +54,8 @@ public final class MineSIerConfig {
     maxTranscriptLines = intValue("maxTranscriptLines", maxTranscriptLines, 1, 10_000);
     maxTurtleProgramTicks =
         intValue("maxTurtleProgramTicks", maxTurtleProgramTicks, 1, 20 * 60 * 60);
+    maxTurtleCallbackTicks =
+        intValue("maxTurtleCallbackTicks", maxTurtleCallbackTicks, 1, 20 * 60 * 60);
     maxTurtleWaitTicks = intValue("maxTurtleWaitTicks", maxTurtleWaitTicks, 0, 20 * 60 * 60);
 
     writeDefaults(path);

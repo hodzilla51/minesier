@@ -179,7 +179,6 @@ public final class MineSIerNet {
     BlockPos pos = p.pos();
     if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > REACH_SQR
         || !(level.getBlockEntity(pos) instanceof TurtleBlockEntity turtle)
-        || TurtleManager.isRunning(level, pos)
         || !turtle.ensureAccess(player)) {
       return;
     }
@@ -188,10 +187,20 @@ public final class MineSIerNet {
       // recapturing and recentering the mouse before TerminalScreenS2C arrives.
       player.doCloseContainer();
     }
-    ServerPlayNetworking.send(
-        player, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
-    sendProgramList(player, turtle);
-    ServerPlayNetworking.send(player, new ProcessStateS2C(false, ""));
+    // A running program (foreground or resident daemon) owns the live transcript; register this
+    // player as its viewer and report the real process state so Stop works. Otherwise show the BE.
+    String liveTranscript = TurtleManager.attachViewer(level, pos, player);
+    if (liveTranscript != null) {
+      ServerPlayNetworking.send(player, new TerminalScreenS2C(pos, liveTranscript, true, true));
+      sendProgramList(player, turtle);
+      ServerPlayNetworking.send(
+          player, new ProcessStateS2C(true, TurtleManager.processNameAt(level, pos)));
+    } else {
+      ServerPlayNetworking.send(
+          player, new TerminalScreenS2C(pos, turtle.getTranscript(), true, true));
+      sendProgramList(player, turtle);
+      ServerPlayNetworking.send(player, new ProcessStateS2C(false, ""));
+    }
   }
 
   private static boolean isTurtleMenuAt(ServerPlayer player, BlockPos pos) {
@@ -317,8 +326,13 @@ public final class MineSIerNet {
       if (!turtle.ensureAccess(player)) {
         return;
       }
-      // Turtle programs run tick-paced on a worker thread; the manager drives + replies.
+      // Turtle programs run tick-paced on a worker thread; the manager drives + replies as they
+      // run. Report process state now so the terminal enables Stop for the running program.
       TurtleManager.run(level, pos, player, payload.command());
+      ServerPlayNetworking.send(
+          player,
+          new ProcessStateS2C(
+              TurtleManager.isRunning(level, pos), TurtleManager.processNameAt(level, pos)));
     } else if (level.getBlockEntity(pos) instanceof ComputerBlockEntity computer) {
       if (!computer.ensureAccess(player)) {
         return;
